@@ -21,18 +21,21 @@ def create_single_page(data):
     """
     metadata = data[0]
     images_path = data[1]
-    dry = data[2]
+    masks_path = data[2]
+    dry = data[3]
 
     page = Page()
     page.load_data(metadata)
     filename = images_path+page.name+cfg.output_format
+    filename_mask = masks_path+page.name+cfg.output_format
     if not os.path.isfile(filename) and not dry:
-
         img = page.render(show=False)
         img.save(filename)
+        img = page.render_mask()
+        img.save(filename_mask)
 
 
-def render_pages(metadata_dir, images_dir, dry=False):
+def render_pages(metadata_dir, images_dir, masks_folder, dry=False):
     """
     Takes metadata json files and renders page images
 
@@ -45,7 +48,7 @@ def render_pages(metadata_dir, images_dir, dry=False):
     :type images_dir: str
     """
 
-    filenames = [(metadata_dir+filename, images_dir, dry)
+    filenames = [(metadata_dir+filename, images_dir, masks_folder, dry)
                  for filename in os.listdir(metadata_dir)
                  if filename.endswith(".json")]
 

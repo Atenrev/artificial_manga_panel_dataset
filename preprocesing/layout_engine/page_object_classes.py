@@ -439,6 +439,39 @@ class Page(Panel):
                     panel.load_data(child)
                     self.children.append(panel)
 
+    def render_mask(self):
+        """
+        A function to render this page to mask image
+        """
+        leaf_children = []
+        if self.num_panels > 1:
+            # Get all the panels to be rendered
+            if len(self.leaf_children) < 1:
+                get_leaf_panels(self, leaf_children)
+            else:
+                leaf_children = self.leaf_children
+
+        W = cfg.page_width
+        H = cfg.page_height
+
+        # Create a new blank image
+        page_img = Image.new(size=(W, H), mode="RGB", color="white")
+        draw_rect = ImageDraw.Draw(page_img)
+
+        # Render panel masks
+        for panel in leaf_children:
+
+            # Panel coords
+            rect = panel.get_polygon()
+
+            # Fill panel class
+            draw_rect.polygon(rect, fill="green")
+
+            # Draw outline class
+            draw_rect.line(rect, fill="red", width=cfg.boundary_width)
+
+        return page_img
+
     def render(self, show=False):
         """
         A function to render this page to an image
@@ -615,10 +648,10 @@ class SpeechBubble(object):
                  font,
                  speech_bubble,
                  writing_areas,
-                 resize_to,
-                 location,
                  width,
                  height,
+                 location=None,
+                 resize_to=None,
                  transforms=None,
                  transform_metadata=None,
                  text_orientation=None):
@@ -632,12 +665,15 @@ class SpeechBubble(object):
         self.font = font
         self.speech_bubble = speech_bubble
         self.writing_areas = writing_areas
-        self.resize_to = resize_to
 
         # Location on panel
-        self.location = location
+        if resize_to is not None:
+            self.resize_to = resize_to
         self.width = width
         self.height = height
+
+        if location is not None:
+            self.location = location
 
         self.transform_metadata = {}
         if transform_metadata is not None:
@@ -694,6 +730,71 @@ class SpeechBubble(object):
         self.font_size = np.random.randint(min_font_size,
                                            max_font_size
                                            )
+
+    def place_randomly(self, panel):
+        """
+        A method to place the SpeechBubble in a random location
+        inside the panel.
+
+        :param panel: The panel in which the SpeechBubble will
+        be placed
+
+        :type  panel: Panel
+        """
+        # resize bubble to < 40% of panel area
+        max_area = panel.area*cfg.bubble_to_panel_area_max_ratio
+        new_area = np.random.random()*(max_area - max_area*0.375)
+        new_area = max_area - new_area
+        self.resize_to = new_area
+
+        # Select location of bubble in panel
+        width_m = np.random.random()
+        height_m = np.random.random()
+
+        xy = np.array(panel.coords)
+        min_coord = np.min(xy[xy[:, 0] == np.min(xy[:, 0])], 0)
+
+        x_choice = round(min_coord[0] + (panel.width//2 - 15)*width_m)
+        y_choice = round(min_coord[1] + (panel.height//2 - 15)*height_m)
+
+        self.location = [
+            x_choice,
+            y_choice
+        ]
+
+    def overlaps(self, other):
+        """
+        A method to check if this SpeechBubble overlaps with
+        another. 
+
+        :param other: The other SpeechBubble
+
+        :type  other: SpeechBubbles
+
+        :return: Whether the SpeechBubbles overlap.
+        :rtype: bool
+        """
+        self_x1, self_y1 = self.location
+        self_x1 /= 2; self_y1 /= 2
+        other_x1, other_y1 = other.location
+        other_x1 /= 2; other_y1 /= 2
+
+        self_height, self_width = self.get_resized()
+        other_height, other_width = other.get_resized()
+
+        self_x2 = self_x1 + self_width; self_y2 = self_y1 + self_height
+        other_x2 = other_x1 + other_width; other_y2 = other_y1 + other_height
+
+        x_inter = max(0, min(self_x2, other_x2) - max(self_x1, other_x1))
+        y_inter = max(0, min(self_y2, other_y2) - max(self_y1, other_y1))
+
+        return x_inter > 0 and y_inter > 0
+
+    def get_resized(self):
+        aspect_ratio = self.height/self.width
+        new_height = round(np.sqrt(self.resize_to/aspect_ratio))
+        new_width = round(new_height * aspect_ratio)
+        return new_height, new_width
 
     def dump_data(self):
         """

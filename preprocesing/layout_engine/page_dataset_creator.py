@@ -1486,7 +1486,7 @@ def create_single_panel_metadata(panel,
         font_idx = np.random.randint(0, font_dataset_len)
         font = font_files[font_idx]
 
-        # Select a speech bubble and get it's writing areas
+        # Select a speech bubble and get its writing areas
         speech_bubble_file_idx = np.random.randint(
                                     0,
                                     speech_bubble_dataset_len
@@ -1508,26 +1508,6 @@ def create_single_panel_metadata(panel,
             text = text_dataset.iloc[text_idx].to_dict()
             texts.append(text)
 
-        # resize bubble to < 40% of panel area
-        max_area = panel.area*cfg.bubble_to_panel_area_max_ratio
-        new_area = np.random.random()*(max_area - max_area*0.375)
-        new_area = max_area - new_area
-
-        # Select location of bubble in panel
-        width_m = np.random.random()
-        height_m = np.random.random()
-
-        xy = np.array(panel.coords)
-        min_coord = np.min(xy[xy[:, 0] == np.min(xy[:, 0])], 0)
-
-        x_choice = round(min_coord[0] + (panel.width//2 - 15)*width_m)
-        y_choice = round(min_coord[1] + (panel.height//2 - 15)*height_m)
-
-        location = [
-            x_choice,
-            y_choice
-        ]
-
         speech_bubble_img = Image.open(speech_bubble_file)
         w, h = speech_bubble_img.size
         # Create speech bubble
@@ -1536,13 +1516,18 @@ def create_single_panel_metadata(panel,
                                      font=font,
                                      speech_bubble=speech_bubble_file,
                                      writing_areas=speech_bubble_writing_area,
-                                     resize_to=new_area,
-                                     location=location,
                                      width=w,
                                      height=h,
                                      )
 
-        panel.speech_bubbles.append(speech_bubble)
+        overlaps = False
+        speech_bubble.place_randomly(panel)
+        
+        for other_speech_bubble in panel.speech_bubbles:
+            overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)
+
+        if not overlaps:
+            panel.speech_bubbles.append(speech_bubble)
 
 
 def populate_panels(page,
@@ -2321,10 +2306,7 @@ def create_page_metadata(image_dir,
     if np.random.random() < cfg.panel_removal_chance:
         page = remove_panel(page)
 
-    if number_of_panels == 1:
+    if number_of_panels == 1 or np.random.random() < cfg.background_add_chance:
         page = add_background(page, image_dir, image_dir_path)
-    else:
-        if np.random.random() < cfg.background_add_chance:
-            page = add_background(page, image_dir, image_dir_path)
 
     return page

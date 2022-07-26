@@ -48,7 +48,7 @@ panel_removal_chance = 0.01
 panel_removal_max = 2
 
 # Background adding
-background_add_chance = 0.01
+background_add_chance = 1.0 # 0.01
 
 # **Speech bubbles**
 max_speech_bubbles_per_panel = 3
