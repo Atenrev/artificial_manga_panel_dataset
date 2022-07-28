@@ -13,3 +13,4 @@ cjkwrap==2.2
 kaggle==1.5.12
 dvc[gs]
 pytest==6.2.3
+opencv-python==4.6.0.66

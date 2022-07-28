@@ -1,12 +1,9 @@
 import numpy as np
 import math
-import time
-from copy import deepcopy
 import random
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import pyclipper
 import json
-import uuid
 
 from .page_object_classes import Panel, Page, SpeechBubble
 from .helpers import (

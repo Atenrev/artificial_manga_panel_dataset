@@ -1,6 +1,7 @@
 import numpy as np
-import random
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+import cv2
+import numpy as np
 import json
 import uuid
 from .helpers import crop_image_only_outside
@@ -111,7 +112,6 @@ class Panel(object):
         :rtype: tuple
         """
         if self.non_rect:
-
             return tuple(self.coords)
         else:
 
@@ -204,15 +204,15 @@ class Panel(object):
 
         speech_bubbles = [bubble.dump_data() for bubble in self.speech_bubbles]
         data = dict(
-                name=self.name,
-                coordinates=self.coords,
-                orientation=self.orientation,
-                children=children_rec,
-                non_rect=self.non_rect,
-                sliced=self.sliced,
-                no_render=self.no_render,
-                image=self.image,
-                speech_bubbles=speech_bubbles
+            name=self.name,
+            coordinates=self.coords,
+            orientation=self.orientation,
+            children=children_rec,
+            non_rect=self.non_rect,
+            sliced=self.sliced,
+            no_render=self.no_render,
+            image=self.image,
+            speech_bubbles=speech_bubbles
         )
 
         return data
@@ -237,19 +237,19 @@ class Panel(object):
 
                 transform_metadata = speech_bubble['transform_metadata']
                 bubble = SpeechBubble(
-                            texts=speech_bubble['texts'],
-                            text_indices=speech_bubble['text_indices'],
-                            font=speech_bubble['font'],
-                            speech_bubble=speech_bubble['speech_bubble'],
-                            writing_areas=speech_bubble['writing_areas'],
-                            resize_to=speech_bubble['resize_to'],
-                            location=speech_bubble['location'],
-                            width=speech_bubble['width'],
-                            height=speech_bubble['height'],
-                            transforms=speech_bubble['transforms'],
-                            transform_metadata=transform_metadata,
-                            text_orientation=speech_bubble['text_orientation']
-                            )
+                    texts=speech_bubble['texts'],
+                    text_indices=speech_bubble['text_indices'],
+                    font=speech_bubble['font'],
+                    speech_bubble=speech_bubble['speech_bubble'],
+                    writing_areas=speech_bubble['writing_areas'],
+                    resize_to=speech_bubble['resize_to'],
+                    location=speech_bubble['location'],
+                    width=speech_bubble['width'],
+                    height=speech_bubble['height'],
+                    transforms=speech_bubble['transforms'],
+                    transform_metadata=transform_metadata,
+                    text_orientation=speech_bubble['text_orientation']
+                )
 
                 self.speech_bubbles.append(bubble)
 
@@ -385,7 +385,6 @@ class Page(Panel):
             return json.dumps(data, indent=2)
 
     def load_data(self, filename):
-
         """
         This method reverses the dump_data function and
         load's the metadata of the page from the JSON
@@ -410,19 +409,19 @@ class Page(Panel):
                     text_orientation = speech_bubble['text_orientation']
                     transform_metadata = speech_bubble['transform_metadata']
                     bubble = SpeechBubble(
-                                texts=speech_bubble['texts'],
-                                text_indices=speech_bubble['text_indices'],
-                                font=speech_bubble['font'],
-                                speech_bubble=speech_bubble['speech_bubble'],
-                                writing_areas=speech_bubble['writing_areas'],
-                                resize_to=speech_bubble['resize_to'],
-                                location=speech_bubble['location'],
-                                width=speech_bubble['width'],
-                                height=speech_bubble['height'],
-                                transforms=speech_bubble['transforms'],
-                                transform_metadata=transform_metadata,
-                                text_orientation=text_orientation
-                                )
+                        texts=speech_bubble['texts'],
+                        text_indices=speech_bubble['text_indices'],
+                        font=speech_bubble['font'],
+                        speech_bubble=speech_bubble['speech_bubble'],
+                        writing_areas=speech_bubble['writing_areas'],
+                        resize_to=speech_bubble['resize_to'],
+                        location=speech_bubble['location'],
+                        width=speech_bubble['width'],
+                        height=speech_bubble['height'],
+                        transforms=speech_bubble['transforms'],
+                        transform_metadata=transform_metadata,
+                        text_orientation=text_orientation
+                    )
 
                     self.speech_bubbles.append(bubble)
 
@@ -438,6 +437,96 @@ class Page(Panel):
                     )
                     panel.load_data(child)
                     self.children.append(panel)
+
+    def create_coco_annotations(self):
+        """
+        A function to create the coco annotations of this page
+        """
+        leaf_children = []
+        if self.num_panels > 1:
+            # Get all the panels to be rendered
+            if len(self.leaf_children) < 1:
+                get_leaf_panels(self, leaf_children)
+            else:
+                leaf_children = self.leaf_children
+
+        image = {
+            "id": self.name,
+            "width": self.width,
+            "height": self.height,
+            "file_name": self.name + cfg.output_format,
+            "license": None,
+        }
+
+        W = cfg.page_width
+        H = cfg.page_height
+
+        annotations = []
+
+        for panel in leaf_children:
+            page_mask = Image.new(size=(W, H), mode="1", color="black")
+            draw_rect = ImageDraw.Draw(page_mask)
+
+            # Panel coords
+            rect = panel.get_polygon()
+
+            # Fill panel class
+            draw_rect.polygon(rect, fill="white")
+
+            for sb in panel.speech_bubbles:
+                states, bubble, mask, location = sb.render()
+                # Slightly shift mask so that you get outline for bubbles
+                new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
+                new_mask_height = mask.size[1]+cfg.bubble_mask_y_increase
+                bubble_mask = mask.resize((new_mask_width, new_mask_height))
+
+                w, h = bubble.size
+                crop_dims = (
+                    5, 5,
+                    5+w, 5+h,
+                )
+                # Uses a mask so that the "L" type bubble is cropped
+                bubble_mask = bubble_mask.crop(crop_dims)
+
+                green_block = Image.new('1', (bubble.width, bubble.height), "white")
+                page_mask.paste(green_block, location, bubble_mask)
+
+            np_mask = np.array(page_mask).astype(np.uint8)
+            x, y, w, h = cv2.boundingRect(np_mask)
+            contours, _ = cv2.findContours(
+                np_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            segmentation = []
+            area = 0
+
+            for contour in contours:
+                new_area = cv2.contourArea(contour)
+                # contour = contour.squeeze().tolist()
+                contour = contour.flatten().tolist()
+                
+                if len(contour) > 3:
+                    segmentation.append(contour)
+                    area += new_area
+
+            # draw_rect.rectangle((x, y, x+w, y+h), outline="white")
+            # page_mask.save("test_page.png")
+            # test = Image.new(size=(W, H), mode="1", color="black")
+            # test_draw = ImageDraw.Draw(test)
+            # test_draw.polygon(segmentation, fill=None, outline="white")
+            # test.save("test.png")
+
+            annotation = {
+                "id": panel.name,
+                "image_id": self.name,
+                "category_id": 1,
+                "segmentation": segmentation,
+                "area": area,
+                "bbox": [x,y,w,h], # [x,y,width,height]
+                "iscrowd": 0,
+            }
+            annotations.append(annotation)
+
+        return image, annotations
 
     def render_mask(self):
         """
@@ -642,6 +731,7 @@ class SpeechBubble(object):
 
     :type text_orientation: str, optional
     """
+
     def __init__(self,
                  texts,
                  text_indices,
@@ -686,14 +776,14 @@ class SpeechBubble(object):
                 "rotate",
                 "stretch x",
                 "stretch y",
-                ]
+            ]
             # 1 in 50 chance of no transformation
             if np.random.rand() < 0.98:
                 self.transforms = list(np.random.choice(
-                                            possible_transforms,
-                                            2
-                                            )
-                                       )
+                    possible_transforms,
+                    2
+                )
+                )
 
                 # 1 in 20 chance of inversion
                 if np.random.rand() < 0.05:
@@ -775,15 +865,19 @@ class SpeechBubble(object):
         :rtype: bool
         """
         self_x1, self_y1 = self.location
-        self_x1 /= 2; self_y1 /= 2
+        self_x1 /= 2
+        self_y1 /= 2
         other_x1, other_y1 = other.location
-        other_x1 /= 2; other_y1 /= 2
+        other_x1 /= 2
+        other_y1 /= 2
 
         self_height, self_width = self.get_resized()
         other_height, other_width = other.get_resized()
 
-        self_x2 = self_x1 + self_width; self_y2 = self_y1 + self_height
-        other_x2 = other_x1 + other_width; other_y2 = other_y1 + other_height
+        self_x2 = self_x1 + self_width
+        self_y2 = self_y1 + self_height
+        other_x2 = other_x1 + other_width
+        other_y2 = other_y1 + other_height
 
         x_inter = max(0, min(self_x2, other_x2) - max(self_x1, other_x1))
         y_inter = max(0, min(self_y2, other_y2) - max(self_y1, other_y1))

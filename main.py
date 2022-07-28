@@ -1,3 +1,6 @@
+from datetime import datetime
+import json
+from preprocesing.layout_engine.page_object_classes import Page
 from scraping.download_texts import download_and_extract_jesc
 from scraping.download_fonts import get_font_links
 from scraping.download_images import download_db_illustrations
@@ -56,12 +59,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def _render_pages(metadata_folder, images_folder, masks_folder, dry):
+def _render_pages(metadata_folder, images_folder, dry):
     if not os.path.isdir(metadata_folder):
         print("There is no metadata, please generate metadata first.")
     else:
         print("Loading metadata and rendering")
-        render_pages(metadata_folder, images_folder, masks_folder, dry=dry)
+        render_pages(metadata_folder, images_folder, dry=dry)
 
 
 def _create_metadata(metadata_folder, n_pages, dry):
@@ -104,9 +107,62 @@ def _create_metadata(metadata_folder, n_pages, dry):
         page.dump_data(metadata_folder, dry=dry)
 
 
+def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
+    print("Loading metadata and creating COCO annotations")
+
+    now = datetime.now()
+    now_formatted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    info = {
+        "year": now.year,
+        "version": 1.0,
+        "description": "Artificial comics dataset.",
+        "contributor": "Atenrev",
+        "url": "https://github.com/Atenrev",
+        "date_created": now_formatted,
+    }
+
+    categories = [
+        {
+            "id": 0,
+            "name": "background",
+        },
+        {
+            "id": 1,
+            "name": "panel",
+        }
+    ]
+
+    images = []
+    annotations = []
+
+    for filename in tqdm(os.listdir(metadata_dir)):
+        if not filename.endswith(".json"):
+            pass
+        
+        metadata = os.path.join(metadata_dir, filename)
+        page = Page()
+        page.load_data(metadata)
+        page_image, page_annotations = page.create_coco_annotations()
+
+        images.append(page_image)
+        annotations.extend(page_annotations)
+
+    coco_dict = {
+        "info": info,
+        "images": images,
+        "annotations": annotations,
+        "categories": categories,
+        "licenses": []
+    }
+
+    with open(coco_annotations_path, "w") as f:
+        json.dump(coco_dict, f)
+
+
 def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
-
+    
     # Wrangling with the text dataset
     if args.download_jesc:
         download_and_extract_jesc()
@@ -127,8 +183,8 @@ def main(args):
     if args.verify_fonts:
         font_dataset_path = "datasets/font_dataset/"
         text_dataset_path = "datasets/text_dataset/"
-        fonts_raw_dir = font_dataset_path+"font_file_raw_downloads/"
-        fonts_zip_output = font_dataset_path+"fonts_zip_output/"
+        # fonts_raw_dir = font_dataset_path+"font_file_raw_downloads/"
+        # fonts_zip_output = font_dataset_path+"fonts_zip_output/"
         font_file_dir = font_dataset_path+"font_files/"
         dataframe_file = text_dataset_path+"jesc_dialogues"
         render_text_test_file = font_dataset_path + "render_test_text.txt"
@@ -149,9 +205,9 @@ def main(args):
     if args.convert_images:
         convert_images_to_bw()
 
-    metadata_folder = os.path.join(args.output_dir, "page_metadata/")
-    images_folder = os.path.join(args.output_dir, "page_images/")
-    masks_folder = os.path.join(args.output_dir, "page_masks/")
+    metadata_folder = os.path.join(args.output_dir, "metadata/")
+    images_folder = os.path.join(args.output_dir, "data/")
+    coco_annotations_path = os.path.join(args.output_dir, "labels.json")
 
     if not args.dry:
         if not os.path.isdir(metadata_folder):
@@ -160,20 +216,18 @@ def main(args):
         if not os.path.isdir(images_folder):
             os.mkdir(images_folder)
 
-        if not os.path.isdir(masks_folder):
-            os.mkdir(masks_folder)
-
     # Page creation
     if args.create_page_metadata is not None:
         _create_metadata(metadata_folder, args.create_page_metadata[0], args.dry)
 
     if args.render_pages:
-        _render_pages(metadata_folder, images_folder, masks_folder, args.dry)
+        _render_pages(metadata_folder, images_folder, args.dry)
 
     # Combines the above in case of small size
     if args.generate_pages is not None:
         _create_metadata(metadata_folder, args.generate_pages[0], args.dry)
-        _render_pages(metadata_folder, images_folder, masks_folder, args.dry)
+        _render_pages(metadata_folder, images_folder, args.dry)
+        _create_coco_annotations(metadata_folder, images_folder, coco_annotations_path)
 
     if args.run_tests:
         pytest.main([

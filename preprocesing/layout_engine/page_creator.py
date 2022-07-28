@@ -1,5 +1,3 @@
-from PIL import Image, ImageDraw
-import numpy as np
 import os
 import concurrent
 from tqdm import tqdm
@@ -21,21 +19,17 @@ def create_single_page(data):
     """
     metadata = data[0]
     images_path = data[1]
-    masks_path = data[2]
-    dry = data[3]
+    dry = data[2]
 
     page = Page()
     page.load_data(metadata)
     filename = images_path+page.name+cfg.output_format
-    filename_mask = masks_path+page.name+cfg.output_format
     if not os.path.isfile(filename) and not dry:
         img = page.render(show=False)
         img.save(filename)
-        img = page.render_mask()
-        img.save(filename_mask)
 
 
-def render_pages(metadata_dir, images_dir, masks_folder, dry=False):
+def render_pages(metadata_dir, images_dir, dry=False):
     """
     Takes metadata json files and renders page images
 
@@ -48,7 +42,7 @@ def render_pages(metadata_dir, images_dir, masks_folder, dry=False):
     :type images_dir: str
     """
 
-    filenames = [(metadata_dir+filename, images_dir, masks_folder, dry)
+    filenames = [(metadata_dir+filename, images_dir, dry)
                  for filename in os.listdir(metadata_dir)
                  if filename.endswith(".json")]
 
