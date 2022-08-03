@@ -139,7 +139,7 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
     for filename in tqdm(os.listdir(metadata_dir)):
         if not filename.endswith(".json"):
             pass
-        
+
         metadata = os.path.join(metadata_dir, filename)
         page = Page()
         page.load_data(metadata)
@@ -162,7 +162,7 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
 
 def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     # Wrangling with the text dataset
     if args.download_jesc:
         download_and_extract_jesc()
@@ -241,4 +241,3 @@ if __name__ == '__main__':
     args = parse_args()
     main(args)
 
-    

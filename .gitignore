@@ -138,3 +138,4 @@ raw.tar.gz
 /output*/
 config/
 .DS_Store
+/augraphy*

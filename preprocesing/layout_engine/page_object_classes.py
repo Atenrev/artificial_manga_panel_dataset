@@ -1,12 +1,15 @@
+from curses import panel
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageOps
 import cv2
 import numpy as np
 import json
 import uuid
-from .helpers import crop_image_only_outside
 import cjkwrap
-from .helpers import get_leaf_panels
+import skimage
+
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+from .helpers import (add_noise, blank_image,
+                      crop_image_only_outside, get_leaf_panels)
 from .. import config_file as cfg
 
 
@@ -125,7 +128,7 @@ class Panel(object):
 
     def refresh_coords(self):
         """
-        When chances are made to the xy coordinates variables directly
+        When changes are made to the xy coordinates variables directly
         this function allows you to refresh the coords variable with
         the changes
         """
@@ -138,9 +141,21 @@ class Panel(object):
             self.x1y1
         ]
 
+    def get_random_coords(self):
+        r, c = zip(*self.coords)
+        x, y = skimage.draw.polygon(r, c)
+        random_index = np.random.choice(list(range(len(x))))
+        random_point = (x[random_index], y[random_index])
+        return int(random_point[0]), int(random_point[1])
+
+    def get_center(self):
+        r, c = zip(*self.coords)
+        x, y = skimage.draw.polygon(r, c)
+        return int(np.mean(x)), int(np.mean(y))
+
     def refresh_vars(self):
         """
-        When chances are made to the xy coordinates directly
+        When changes are made to the xy coordinates directly
         this function allows you to refresh the x1y1... variable with
         the changes
         """
@@ -244,8 +259,10 @@ class Panel(object):
                     writing_areas=speech_bubble['writing_areas'],
                     resize_to=speech_bubble['resize_to'],
                     location=speech_bubble['location'],
+                    panel_center_coords=speech_bubble['panel_center_coords'],
                     width=speech_bubble['width'],
                     height=speech_bubble['height'],
+                    orientation=speech_bubble['orientation'],
                     transforms=speech_bubble['transforms'],
                     transform_metadata=transform_metadata,
                     text_orientation=speech_bubble['text_orientation']
@@ -418,6 +435,8 @@ class Page(Panel):
                         location=speech_bubble['location'],
                         width=speech_bubble['width'],
                         height=speech_bubble['height'],
+                        orientation=speech_bubble['orientation'],
+                        panel_center_coords=speech_bubble['panel_center_coords'],
                         transforms=speech_bubble['transforms'],
                         transform_metadata=transform_metadata,
                         text_orientation=text_orientation
@@ -464,6 +483,9 @@ class Page(Panel):
         annotations = []
 
         for panel in leaf_children:
+            if panel.no_render:
+                continue
+
             page_mask = Image.new(size=(W, H), mode="1", color="black")
             draw_rect = ImageDraw.Draw(page_mask)
 
@@ -472,6 +494,7 @@ class Page(Panel):
 
             # Fill panel class
             draw_rect.polygon(rect, fill="white")
+            draw_rect.line(rect, fill="white", width=cfg.boundary_width)
 
             for sb in panel.speech_bubbles:
                 states, bubble, mask, location = sb.render()
@@ -488,7 +511,8 @@ class Page(Panel):
                 # Uses a mask so that the "L" type bubble is cropped
                 bubble_mask = bubble_mask.crop(crop_dims)
 
-                green_block = Image.new('1', (bubble.width, bubble.height), "white")
+                green_block = Image.new(
+                    '1', (bubble.width, bubble.height), "white")
                 page_mask.paste(green_block, location, bubble_mask)
 
             np_mask = np.array(page_mask).astype(np.uint8)
@@ -503,7 +527,7 @@ class Page(Panel):
                 new_area = cv2.contourArea(contour)
                 # contour = contour.squeeze().tolist()
                 contour = contour.flatten().tolist()
-                
+
                 if len(contour) > 3:
                     segmentation.append(contour)
                     area += new_area
@@ -521,7 +545,7 @@ class Page(Panel):
                 "category_id": 1,
                 "segmentation": segmentation,
                 "area": area,
-                "bbox": [x,y,w,h], # [x,y,width,height]
+                "bbox": [x, y, w, h],  # [x,y,width,height]
                 "iscrowd": 0,
             }
             annotations.append(annotation)
@@ -549,6 +573,9 @@ class Page(Panel):
 
         # Render panel masks
         for panel in leaf_children:
+
+            if panel.no_render:
+                continue
 
             # Panel coords
             rect = panel.get_polygon()
@@ -582,14 +609,25 @@ class Page(Panel):
         H = cfg.page_height
 
         # Create a new blank image
-        page_img = Image.new(size=(W, H), mode="L", color="white")
+        page_img = Image.new(size=(W, H), mode="RGB", color="white")
         draw_rect = ImageDraw.Draw(page_img)
 
         # Set background if needed
         if self.background is not None:
-            bg = Image.open(self.background).convert("L")
-            img_array = np.asarray(bg)
-            crop_array = crop_image_only_outside(img_array)
+            if self.background == "#color":
+                # TODO: Parameterize
+                bg = np.zeros([H, W, 3], dtype=np.uint8)
+                bg[:, :, :] = (np.random.randint(235, 255), np.random.randint(
+                    205, 250), np.random.randint(135, 250))
+                bg_noise = add_noise(blank_image(
+                    W, H), sigma=np.random.randint(2, 13))
+                bg_noise = np.multiply(bg, bg_noise/255.0).astype(np.uint8)
+                crop_array = bg_noise
+            else:
+                bg = Image.open(self.background).convert("L")
+                img_array = np.asarray(bg)
+                crop_array = crop_image_only_outside(img_array)
+
             bg = Image.fromarray(crop_array)
             bg = bg.resize((W, H))
             page_img.paste(bg, (0, 0))
@@ -597,11 +635,16 @@ class Page(Panel):
         # Render panels
         for panel in leaf_children:
 
+            if panel.no_render:
+                continue
+
             # Panel coords
             rect = panel.get_polygon()
 
             # Open the illustration to put within panel
             if panel.image is not None:
+                if panel.image == "datasets/image_dataset/db_illustrations_bw/755087.jpg":
+                    a = 0
                 img = Image.open(panel.image)
 
                 # Clean it up by cropping the black areas
@@ -645,7 +688,7 @@ class Page(Panel):
 
         # Render bubbles
         for panel in leaf_children:
-            if len(panel.speech_bubbles) < 1:
+            if len(panel.speech_bubbles) < 1 or panel.no_render:
                 continue
             # For each bubble
             for sb in panel.speech_bubbles:
@@ -740,6 +783,8 @@ class SpeechBubble(object):
                  writing_areas,
                  width,
                  height,
+                 orientation,
+                 panel_center_coords,
                  location=None,
                  resize_to=None,
                  transforms=None,
@@ -761,9 +806,13 @@ class SpeechBubble(object):
             self.resize_to = resize_to
         self.width = width
         self.height = height
+        self.orientation = orientation
 
         if location is not None:
             self.location = location
+
+        if panel_center_coords is not None:
+            self.panel_center_coords = panel_center_coords
 
         self.transform_metadata = {}
         if transform_metadata is not None:
@@ -771,8 +820,8 @@ class SpeechBubble(object):
 
         if transforms is None:
             possible_transforms = [
-                "flip horizontal",
-                "flip vertical",
+                # "flip horizontal",
+                # "flip vertical",
                 "rotate",
                 "stretch x",
                 "stretch y",
@@ -798,7 +847,7 @@ class SpeechBubble(object):
                     self.transform_metadata["stretch_y_factor"] = factor
 
                 if "rotate" in self.transforms:
-                    rotation = np.random.randint(10, 30)
+                    rotation = np.random.randint(5, 15)
                     self.transform_metadata["rotation_amount"] = rotation
 
             else:
@@ -837,15 +886,7 @@ class SpeechBubble(object):
         new_area = max_area - new_area
         self.resize_to = new_area
 
-        # Select location of bubble in panel
-        width_m = np.random.random()
-        height_m = np.random.random()
-
-        xy = np.array(panel.coords)
-        min_coord = np.min(xy[xy[:, 0] == np.min(xy[:, 0])], 0)
-
-        x_choice = round(min_coord[0] + (panel.width//2 - 15)*width_m)
-        y_choice = round(min_coord[1] + (panel.height//2 - 15)*height_m)
+        x_choice, y_choice = panel.get_random_coords()
 
         self.location = [
             x_choice,
@@ -910,8 +951,10 @@ class SpeechBubble(object):
             writing_areas=self.writing_areas,
             resize_to=self.resize_to,
             location=self.location,
+            panel_center_coords=self.panel_center_coords,
             width=self.width,
             height=self.height,
+            orientation=self.orientation,
             transforms=self.transforms,
             transform_metadata=self.transform_metadata,
             text_orientation=self.text_orientation
@@ -951,48 +994,6 @@ class SpeechBubble(object):
             if transform == "invert":
                 states.append("inverted")
                 bubble = ImageOps.invert(bubble)
-
-            elif transform == "flip vertical":
-                bubble = ImageOps.flip(bubble)
-                mask = ImageOps.flip(mask)
-                # TODO: vertically flip box coordinates
-                new_writing_areas = []
-                for area in self.writing_areas:
-                    og_height = area['original_height']
-
-                    # Convert from percentage to actual values
-                    px_height = (area['height']/100)*og_height
-
-                    og_y = ((area['y']/100)*og_height)
-                    cydist = abs(cy - og_y)
-                    new_y = (2*cydist + og_y) - px_height
-                    new_y = (new_y/og_height)*100
-                    area['y'] = new_y
-                    new_writing_areas.append(area)
-
-                self.writing_areas = new_writing_areas
-                states.append("vflip")
-
-            elif transform == "flip horizontal":
-                bubble = ImageOps.mirror(bubble)
-                mask = ImageOps.mirror(mask)
-                new_writing_areas = []
-                for area in self.writing_areas:
-                    og_width = area['original_width']
-
-                    # Convert from percentage to actual values
-                    px_width = (area['width']/100)*og_width
-
-                    og_x = ((area['x']/100)*og_width)
-                    # og_y = ((area['y']/100)*og_height)
-                    cxdist = abs(cx - og_x)
-                    new_x = (2*cxdist + og_x) - px_width
-                    new_x = (new_x/og_width)*100
-                    area['x'] = new_x
-                    new_writing_areas.append(area)
-
-                self.writing_areas = new_writing_areas
-                states.append("hflip")
 
             elif transform == "stretch x":
 
@@ -1176,16 +1177,72 @@ class SpeechBubble(object):
         mask = mask.resize((new_width, new_height))
 
         # Make sure bubble doesn't bleed the page
-        x1, y1 = self.location
+        xcenter, ycenter = self.location
+        # center bubble in coordinates
+        x1 = xcenter - new_width // 2
+        y1 = ycenter - new_height // 2
         x2 = x1 + bubble.size[0]
         y2 = y1 + bubble.size[1]
 
         if x2 > cfg.page_width:
             x1 = x1 - (x2-cfg.page_width)
+        elif x1 < 0:
+            xcenter -= x1
+            x1 = 0
         if y2 > cfg.page_height:
             y1 = y1 - (y2-cfg.page_height)
+        elif y1 < 0:
+            ycenter -= y1
+            y1 = 0
 
         self.location = (x1, y1)
+
+        dx = self.panel_center_coords[0] - xcenter
+        dy = self.panel_center_coords[1] - ycenter
+
+        if type(self.orientation) is str and (dy > 0 and self.orientation[0] == 't' 
+            or dy < 0 and self.orientation[0] == 'b'):
+            bubble = ImageOps.flip(bubble)
+            mask = ImageOps.flip(mask)
+            # TODO: vertically flip box coordinates
+            new_writing_areas = []
+            for area in self.writing_areas:
+                og_height = area['original_height']
+
+                # Convert from percentage to actual values
+                px_height = (area['height']/100)*og_height
+
+                og_y = ((area['y']/100)*og_height)
+                cydist = abs(cy - og_y)
+                new_y = (2*cydist + og_y) - px_height
+                new_y = (new_y/og_height)*100
+                area['y'] = new_y
+                new_writing_areas.append(area)
+
+            self.writing_areas = new_writing_areas
+            states.append("vflip")
+
+        if type(self.orientation) is str and (dx > 0 and self.orientation[1] == 'l' 
+            or dx < 0 and self.orientation[1] == 'r'):
+            bubble = ImageOps.mirror(bubble)
+            mask = ImageOps.mirror(mask)
+            new_writing_areas = []
+            for area in self.writing_areas:
+                og_width = area['original_width']
+
+                # Convert from percentage to actual values
+                px_width = (area['width']/100)*og_width
+
+                og_x = ((area['x']/100)*og_width)
+                # og_y = ((area['y']/100)*og_height)
+                cxdist = abs(cx - og_x)
+                new_x = (2*cxdist + og_x) - px_width
+                new_x = (new_x/og_width)*100
+                area['x'] = new_x
+                new_writing_areas.append(area)
+
+            self.writing_areas = new_writing_areas
+            states.append("hflip")
 
         # perform rotation if it was in transforms
         # TODO: Fix issue of bad crops with rotation

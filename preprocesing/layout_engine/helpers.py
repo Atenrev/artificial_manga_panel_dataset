@@ -1,7 +1,5 @@
 import numpy as np
-import math
-import random
-from PIL import Image, ImageDraw, ImageFont
+import cv2
 
 
 def crop_image_only_outside(img, tol=0):
@@ -409,3 +407,44 @@ def move_children_to_line(parent, line, change, orientation, direction):
                             child.non_rect = True
 
                     child.refresh_vars()
+
+
+def blank_image(width=1024, height=1024, background=250):
+    """
+    It creates a blank image of the given background color
+    """
+    img = np.full((height, width, 1), background, np.uint8)
+    return img
+
+
+def add_noise(img, sigma=2):
+    """
+    Adds noise to the existing image
+    """
+    width, height, ch = img.shape
+    n = noise(width, height, sigma=sigma)
+    img = img + n
+    return img.clip(0, 255)
+
+
+def noise(width, height, ratio=1, sigma=2):
+    """
+    The function generates an image, filled with gaussian nose. If ratio parameter is specified,
+    noise will be generated for a lesser image and then it will be upscaled to the original size.
+    In that case noise will generate larger square patterns. To avoid multiple lines, the upscale
+    uses interpolation.
+
+    :param ratio: the size of generated noise "pixels"
+    :param sigma: defines bounds of noise fluctuations
+    """
+    mean = 0
+    assert width % ratio == 0, "Can't scale image with of size {} and ratio {}".format(width, ratio)
+    assert height % ratio == 0, "Can't scale image with of size {} and ratio {}".format(height, ratio)
+
+    h = int(height / ratio)
+    w = int(width / ratio)
+
+    result = np.random.normal(mean, sigma, (w, h, 1))
+    if ratio > 1:
+        result = cv2.resize(result, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+    return result.reshape((width, height, 1))

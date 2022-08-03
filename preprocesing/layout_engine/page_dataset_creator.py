@@ -7,10 +7,10 @@ import json
 
 from .page_object_classes import Panel, Page, SpeechBubble
 from .helpers import (
-                      invert_for_next, choose, choose_and_return_other,
+                      add_noise, invert_for_next, choose, choose_and_return_other,
                       get_min_area_panels, get_leaf_panels,
                       find_parent_with_multiple_children,
-                      move_children_to_line
+                      move_children_to_line, blank_image
                       )
 from .. import config_file as cfg
 
@@ -205,7 +205,7 @@ def draw_n_shifted(n, parent, horizontal_vertical, shifts=[]):
 def draw_n(n, parent, horizontal_vertical):
     """
     A function to take a parent Panel and divide it into n
-    sub-panel's vertically or horizontally with each panels having
+    sub-panels vertically or horizontally with each panels having
     equal size ratios along the axis perpendicular to their orientation
 
 
@@ -245,7 +245,7 @@ def draw_n(n, parent, horizontal_vertical):
             if i == 0:
                 x1y1 = topleft
                 x2y2 = topright
-            # If not it has the same top side as it's
+            # If not it has the same top side as its
             # previous sibiling's bottom side
             else:
 
@@ -516,7 +516,7 @@ def single_slice_panels(page,
             else:
                 number_to_slice = 1
 
-        for idx in range(0, number_to_slice):
+        for idx in range(number_to_slice):
             panel = relevant_panels[idx]
             num_panels_added += 1
 
@@ -653,7 +653,6 @@ def single_slice_panels(page,
 
             # bottom left corner
             if skew_side == "bl":
-
                 p1_cut_x1y1 = (panel.x4y4[0], panel.x4y4[1] - cut_y_length)
                 p1_cut_x2y2 = (panel.x4y4[0] + cut_x_length, panel.x4y4[1])
                 p1_cut_x3y3 = (panel.x4y4)
@@ -666,7 +665,6 @@ def single_slice_panels(page,
 
             # bottom right corner
             elif skew_side == "br":
-
                 p1_cut_x1y1 = (panel.x3y3[0], panel.x3y3[1] - cut_y_length)
                 p1_cut_x2y2 = (panel.x3y3)
                 p1_cut_x3y3 = (panel.x3y3[0] - cut_x_length, panel.x3y3[1])
@@ -679,7 +677,6 @@ def single_slice_panels(page,
 
             # top left corner
             elif skew_side == "tl":
-
                 p1_cut_x1y1 = panel.x1y1
                 p1_cut_x2y2 = (panel.x1y1[0] + cut_x_length, panel.x1y1[1])
                 p1_cut_x3y3 = (panel.x1y1[0], panel.x1y1[1] + cut_y_length)
@@ -687,7 +684,7 @@ def single_slice_panels(page,
                 p1.coords = [p1_cut_x1y1, p1_cut_x2y2,
                              p1_cut_x3y3, p1_cut_x1y1]
                 p2.coords = [p1_cut_x2y2, panel.x2y2, panel.x3y3,
-                             panel.x4y4, p1_cut_x3y3, p1_cut_x1y1]
+                             panel.x4y4, p1_cut_x3y3, p1_cut_x2y2]
 
             # top right corner
             elif skew_side == "tr":
@@ -749,12 +746,12 @@ def box_transform_panels(page, type_choice=None, pattern=None):
 
             if len(relevant_panels) > 0:
                 if len(relevant_panels) > 1:
-                    num_panels = np.random.randint(1, len(relevant_panels))
+                    num_panels = np.random.randint(1, len(relevant_panels)+1)
                 else:
                     num_panels = 1
 
                 # For each panel
-                for idx in range(0, num_panels):
+                for idx in range(num_panels):
                     panel = relevant_panels[idx]
 
                     # Get the three child panels
@@ -1345,6 +1342,7 @@ def shrink_panels(page):
             panel.x4y4 = changed_coords[3]
         else:
             # Assign them as is if there are no solutions
+            panel.no_render = True
             pass
 
     return page
@@ -1381,7 +1379,7 @@ def remove_panel(page):
 
 def add_background(page, image_dir, image_dir_path):
     """
-    Add a background image to the page
+    Add a background color or image to the page
 
     :param page: Page to add background to
 
@@ -1401,9 +1399,12 @@ def add_background(page, image_dir, image_dir_path):
     :rtype: Page
     """
 
-    image_dir_len = len(image_dir)
-    idx = np.random.randint(0, image_dir_len)
-    page.background = image_dir_path + image_dir[idx]
+    if np.random.random() < 0.8:
+        page.background = "#color"
+    else:  
+        image_dir_len = len(image_dir)
+        idx = np.random.randint(0, image_dir_len)
+        page.background = image_dir_path + image_dir[idx]
 
     return page
 
@@ -1495,6 +1496,7 @@ def create_single_panel_metadata(panel,
         speech_bubble_writing_area = speech_bubble_tags[area_idx]['label']
         speech_bubble_writing_area = speech_bubble_writing_area.values[0]
         speech_bubble_writing_area = json.loads(speech_bubble_writing_area)
+        speech_orientation = speech_bubble_tags[area_idx]['orientation'].values[0]
 
         # Select text for writing areas
         texts = []
@@ -1515,6 +1517,8 @@ def create_single_panel_metadata(panel,
                                      writing_areas=speech_bubble_writing_area,
                                      width=w,
                                      height=h,
+                                     orientation=speech_orientation,
+                                     panel_center_coords=panel.get_center(),
                                      )
 
         overlaps = False
@@ -1523,7 +1527,10 @@ def create_single_panel_metadata(panel,
         for other_speech_bubble in panel.speech_bubbles:
             overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)
 
-        if not overlaps:
+        # If width or height are greater than panel's, don't add it
+        hr, wr = speech_bubble.get_resized()
+
+        if not overlaps and hr < panel.height and wr < panel.width:
             panel.speech_bubbles.append(speech_bubble)
 
 

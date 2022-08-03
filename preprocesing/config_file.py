@@ -36,7 +36,7 @@ vertical_horizontal_ratios = {
 
 # Panel transform chance
 
-panel_transform_chance = 0.90
+panel_transform_chance = 0.30
 
 # Panel shrinking
 
@@ -48,7 +48,7 @@ panel_removal_chance = 0.01
 panel_removal_max = 2
 
 # Background adding
-background_add_chance = 1.0 # 0.01
+background_add_chance = 0.8 # 0.01
 
 # **Speech bubbles**
 max_speech_bubbles_per_panel = 3
@@ -67,7 +67,7 @@ center_side_ratio = 0.7
 
 # Box transforms
 box_transform_panel_chance = 0.1
-panel_box_trapezoid_ratio = 0.5
+panel_box_trapezoid_ratio = 0.2
 
 # How much at most should the trapezoid/rhombus start from
 # as a ratio of the smallest panel's width or height
