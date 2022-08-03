@@ -838,6 +838,7 @@ class SpeechBubble(object):
                 if np.random.rand() < 0.05:
                     self.transforms.append("invert")
 
+                # TODO: Parametrize stretching
                 if "stretch x" in self.transforms:
                     # Up to 30% stretching
                     factor = np.random.random()*0.3
@@ -882,7 +883,7 @@ class SpeechBubble(object):
         """
         # resize bubble to < 40% of panel area
         max_area = panel.area*cfg.bubble_to_panel_area_max_ratio
-        new_area = np.random.random()*(max_area - max_area*0.375)
+        new_area = np.random.random()*(max_area - max_area*0.25) #TODO: Parametrize
         new_area = max_area - new_area
         self.resize_to = new_area
 
@@ -926,7 +927,18 @@ class SpeechBubble(object):
         return x_inter > 0 and y_inter > 0
 
     def get_resized(self):
-        aspect_ratio = self.height/self.width
+        if "stretch_x_factor" in self.transform_metadata:
+            stretch_x_factor = self.transform_metadata['stretch_x_factor']
+        else:
+            stretch_x_factor = 0
+        if "stretch_y_factor" in self.transform_metadata:
+            stretch_y_factor = self.transform_metadata['stretch_y_factor']
+        else:
+            stretch_y_factor = 0
+
+        w = round(self.width*(1+stretch_x_factor))
+        h = round(self.height*(1+stretch_y_factor))
+        aspect_ratio = w/h
         new_height = round(np.sqrt(self.resize_to/aspect_ratio))
         new_width = round(new_height * aspect_ratio)
         return new_height, new_width
@@ -979,7 +991,10 @@ class SpeechBubble(object):
         min_font_size = cfg.max_font_size
         max_font_size = cfg.max_font_size
         current_font_size = self.font_size
-        font = ImageFont.truetype(self.font, current_font_size)
+        try:
+            font = ImageFont.truetype(self.font, current_font_size)
+        except:
+            a = 0
 
         # Center of bubble
         w, h = bubble.size
@@ -1170,7 +1185,7 @@ class SpeechBubble(object):
                            direction=self.text_orientation)
 
         # reisize bubble
-        aspect_ratio = h/w
+        aspect_ratio = w/h
         new_height = round(np.sqrt(self.resize_to/aspect_ratio))
         new_width = round(new_height * aspect_ratio)
         bubble = bubble.resize((new_width, new_height))
