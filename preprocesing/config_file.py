@@ -6,7 +6,8 @@ page_size = (page_width, page_height)
 
 output_format = ".png"
 
-boundary_width = 10
+boundary_width = 15
+boundary_color = "black"
 
 # **Font coverage**
 # How many characters of the dataset should the font files support

@@ -1,4 +1,5 @@
 from curses import panel
+from random import randint
 import numpy as np
 import cv2
 import numpy as np
@@ -608,6 +609,10 @@ class Page(Panel):
         W = cfg.page_width
         H = cfg.page_height
 
+        boundary_width = np.random.randint(
+            cfg.boundary_width-10, cfg.boundary_width+10)
+        boundary_color = cfg.boundary_color
+
         # Create a new blank image
         page_img = Image.new(size=(W, H), mode="RGB", color="white")
         draw_rect = ImageDraw.Draw(page_img)
@@ -643,8 +648,6 @@ class Page(Panel):
 
             # Open the illustration to put within panel
             if panel.image is not None:
-                if panel.image == "datasets/image_dataset/db_illustrations_bw/755087.jpg":
-                    a = 0
                 img = Image.open(panel.image)
 
                 # Clean it up by cropping the black areas
@@ -676,7 +679,13 @@ class Page(Panel):
                 draw_mask.polygon(rect, fill=255)
 
             # Draw outline
-            draw_rect.line(rect, fill="black", width=cfg.boundary_width)
+            if np.random.random() < 0.9:
+                line_rect = rect + (rect[0],)
+                draw_rect.line(line_rect,
+                               fill=boundary_color,
+                               width=boundary_width,
+                               joint="curve"
+                               )
 
             # Paste illustration onto the page
             if panel.image is not None:
@@ -883,7 +892,7 @@ class SpeechBubble(object):
         """
         # resize bubble to < 40% of panel area
         max_area = panel.area*cfg.bubble_to_panel_area_max_ratio
-        new_area = np.random.random()*(max_area - max_area*0.25) #TODO: Parametrize
+        new_area = np.random.random()*(max_area - max_area*0.25)  # TODO: Parametrize
         new_area = max_area - new_area
         self.resize_to = new_area
 
@@ -897,7 +906,7 @@ class SpeechBubble(object):
     def overlaps(self, other):
         """
         A method to check if this SpeechBubble overlaps with
-        another. 
+        another.
 
         :param other: The other SpeechBubble
 
@@ -1215,8 +1224,8 @@ class SpeechBubble(object):
         dx = self.panel_center_coords[0] - xcenter
         dy = self.panel_center_coords[1] - ycenter
 
-        if type(self.orientation) is str and (dy > 0 and self.orientation[0] == 't' 
-            or dy < 0 and self.orientation[0] == 'b'):
+        if type(self.orientation) is str and (dy > 0 and self.orientation[0] == 't'
+                                              or dy < 0 and self.orientation[0] == 'b'):
             bubble = ImageOps.flip(bubble)
             mask = ImageOps.flip(mask)
             # TODO: vertically flip box coordinates
@@ -1237,8 +1246,8 @@ class SpeechBubble(object):
             self.writing_areas = new_writing_areas
             states.append("vflip")
 
-        if type(self.orientation) is str and (dx > 0 and self.orientation[1] == 'l' 
-            or dx < 0 and self.orientation[1] == 'r'):
+        if type(self.orientation) is str and (dx > 0 and self.orientation[1] == 'l'
+                                              or dx < 0 and self.orientation[1] == 'r'):
             bubble = ImageOps.mirror(bubble)
             mask = ImageOps.mirror(mask)
             new_writing_areas = []

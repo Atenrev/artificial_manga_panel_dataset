@@ -1315,6 +1315,9 @@ def shrink_panels(page):
     else:
         panels = page.leaf_children
 
+    panel_shrink_amount = np.random.randint(
+        cfg.panel_shrink_amount-10, cfg.panel_shrink_amount+10)
+
     # For each panel
     for panel in panels:
         # Shrink them
@@ -1324,7 +1327,7 @@ def shrink_panels(page):
                     pyclipper.ET_CLOSEDPOLYGON
                     )
 
-        solution = pco.Execute(cfg.panel_shrink_amount)
+        solution = pco.Execute(panel_shrink_amount)
 
         # Get the solutions
         changed_coords = []
