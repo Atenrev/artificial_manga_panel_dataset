@@ -3,14 +3,13 @@ import json
 import pandas as pd
 import os
 
-from preprocesing.layout_engine.page_object_classes import (
-                                Page, Panel, SpeechBubble
+from preprocesing.layout_engine.page_objects import (
+                                Page
                                 )
 from preprocesing.layout_engine.page_dataset_creator import (
                                 get_base_panels, populate_panels
                                 )
-from preprocesing.layout_engine.helpers import get_leaf_panels
-
+                                
 
 @pytest.fixture(scope="module")
 def data_files():

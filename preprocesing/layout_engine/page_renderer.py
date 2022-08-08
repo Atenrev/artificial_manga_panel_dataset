@@ -2,7 +2,7 @@ import os
 import concurrent
 from tqdm import tqdm
 
-from .page_object_classes import Page
+from .page_objects.page import Page
 from .. import config_file as cfg
 
 

@@ -1,18 +1,20 @@
 import numpy as np
 import math
 import random
-from PIL import Image
+import os
 import pyclipper
 import json
 
-from .page_object_classes import Panel, Page, SpeechBubble
-from .helpers import (
-                      add_noise, invert_for_next, choose, choose_and_return_other,
-                      get_min_area_panels, get_leaf_panels,
-                      find_parent_with_multiple_children,
-                      move_children_to_line, blank_image
-                      )
+from PIL import Image
 from .. import config_file as cfg
+from .page_objects import Panel, Page, SpeechBubble
+from .helpers import (
+    invert_for_next, choose, choose_and_return_other,
+    get_min_area_panels, get_leaf_panels,
+    find_parent_with_multiple_children,
+    move_children_to_line
+)
+from .page_objects import PanelObject
 
 
 # Creation helpers
@@ -779,8 +781,8 @@ def box_transform_panels(page, type_choice=None, pattern=None):
                         trapezoid_pattern = pattern
 
                     movement_proportion = np.random.randint(
-                                            10,
-                                            cfg.trapezoid_movement_limit)
+                        10,
+                        cfg.trapezoid_movement_limit)
 
                     # If parent panel is horizontal the children are vertical
                     if panel.orientation == "h":
@@ -981,9 +983,9 @@ def box_transform_panels(page, type_choice=None, pattern=None):
                         rhombus_pattern = pattern
 
                     movement_proportion = np.random.randint(
-                                            10,
-                                            cfg.rhombus_movement_limit
-                                            )
+                        10,
+                        cfg.rhombus_movement_limit
+                    )
 
                     # Logic for the section below is the same as the
                     # trapezoid with the exception of the fact that the
@@ -1152,9 +1154,9 @@ def box_transform_page(page, direction_list=[]):
             p2 = page.get_child(idx+1)
 
             change_proportion = np.random.randint(
-                                    10,
-                                    cfg.full_page_movement_proportion_limit
-                                    )
+                10,
+                cfg.full_page_movement_proportion_limit
+            )
 
             change_proportion /= 100
 
@@ -1404,7 +1406,7 @@ def add_background(page, image_dir, image_dir_path):
 
     if np.random.random() < 0.8:
         page.background = "#color"
-    else:  
+    else:
         image_dir_len = len(image_dir)
         idx = np.random.randint(0, image_dir_len)
         page.background = image_dir_path + image_dir[idx]
@@ -1414,8 +1416,10 @@ def add_background(page, image_dir, image_dir_path):
 
 # Page creators
 def create_single_panel_metadata(panel,
-                                 image_dir,
-                                 image_dir_path,
+                                 backgrounds_dir,
+                                 backgrounds_dir_path,
+                                 foregrounds_dir,
+                                 foregrounds_dir_path,
                                  font_files,
                                  text_dataset,
                                  speech_bubble_files,
@@ -1466,19 +1470,55 @@ def create_single_panel_metadata(panel,
     """
 
     # Image to be used inside panel
-    image_dir_len = len(image_dir)
-    select_image_idx = np.random.randint(0, image_dir_len)
-    select_image = image_dir[select_image_idx]
-    panel.image = image_dir_path+select_image
+    image_dir_len = len(backgrounds_dir)
+    background_idx = np.random.randint(0, image_dir_len)
+    background_image = backgrounds_dir[background_idx]
+    panel.image = os.path.join(backgrounds_dir_path, background_image)
 
-    # Select number of speech bubbles to assign to panel
+    # Foregrounds
+    num_panel_objects = np.random.randint(minimum_speech_bubbles,
+                                          cfg.max_speech_bubbles_per_panel)
+
+    foregrounds_len = len(foregrounds_dir)
+
+    for _ in range(num_panel_objects):
+        foreground_file_idx = np.random.randint(
+            0,
+            foregrounds_len
+        )
+        panel_object_file = os.path.join(
+            foregrounds_dir_path, foregrounds_dir[foreground_file_idx])
+
+        panel_object_img = Image.open(panel_object_file)
+        width, height = panel_object_img.size
+
+        panel_object = PanelObject(
+            panel_object_file,
+            width,
+            height,
+            panel_center_coords=panel.get_center(),
+        )
+
+        overlaps = False
+        panel_object.place_randomly(panel)
+
+        for other_panel_object in panel.panel_objects:
+            overlaps = overlaps or panel_object.overlaps(other_panel_object)
+
+        # If width or height are greater than panel's, don't add it
+        hr, wr = panel_object.get_resized()
+
+        if not overlaps and hr < panel.height and wr < panel.width:
+            panel.panel_objects.append(panel_object)
+
+    # Speech bubbles
     num_speech_bubbles = np.random.randint(minimum_speech_bubbles,
                                            cfg.max_speech_bubbles_per_panel)
 
-    # Get lengths of datasets
     text_dataset_len = len(text_dataset)
     font_dataset_len = len(font_files)
-    speech_bubble_dataset_len = len(speech_bubble_files)
+    speech_bubble_tags_noriented_index = speech_bubble_tags["orientation"].isna()
+    speech_bubble_tags_noriented = speech_bubble_tags[speech_bubble_tags_noriented_index]
 
     # Associated speech bubbles
     for speech_bubble in range(num_speech_bubbles):
@@ -1487,19 +1527,13 @@ def create_single_panel_metadata(panel,
         font_idx = np.random.randint(0, font_dataset_len)
         font = font_files[font_idx]
 
-        # Select a speech bubble and get its writing areas
-        speech_bubble_file_idx = np.random.randint(
-                                    0,
-                                    speech_bubble_dataset_len
-                                    )
+        speech_bubble_tags_sample = speech_bubble_tags_noriented.sample()
 
-        speech_bubble_file = speech_bubble_files[speech_bubble_file_idx]
+        speech_bubble_file = speech_bubble_tags_sample["imagename"].values[0]
 
-        area_idx = speech_bubble_tags['imagename'] == speech_bubble_file
-        speech_bubble_writing_area = speech_bubble_tags[area_idx]['label']
-        speech_bubble_writing_area = speech_bubble_writing_area.values[0]
+        speech_bubble_writing_area = speech_bubble_tags_sample['label'].values[0]
         speech_bubble_writing_area = json.loads(speech_bubble_writing_area)
-        speech_orientation = speech_bubble_tags[area_idx]['orientation'].values[0]
+        speech_orientation = speech_bubble_tags_sample['orientation'].values[0]
 
         # Select text for writing areas
         texts = []
@@ -1526,7 +1560,7 @@ def create_single_panel_metadata(panel,
 
         overlaps = False
         speech_bubble.place_randomly(panel)
-        
+
         for other_speech_bubble in panel.speech_bubbles:
             overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)
 
@@ -1538,8 +1572,10 @@ def create_single_panel_metadata(panel,
 
 
 def populate_panels(page,
-                    image_dir,
-                    image_dir_path,
+                    backgrounds_dir,
+                    backgrounds_dir_path,
+                    foregrounds_dir,
+                    foregrounds_dir_path,
                     font_files,
                     text_dataset,
                     speech_bubble_files,
@@ -1596,8 +1632,10 @@ def populate_panels(page,
     if page.num_panels > 1:
         for child in page.leaf_children:
             create_single_panel_metadata(child,
-                                         image_dir,
-                                         image_dir_path,
+                                         backgrounds_dir,
+                                         backgrounds_dir_path,
+                                         foregrounds_dir,
+                                         foregrounds_dir_path,
                                          font_files,
                                          text_dataset,
                                          speech_bubble_files,
@@ -1606,8 +1644,10 @@ def populate_panels(page,
                                          )
     else:
         create_single_panel_metadata(page,
-                                     image_dir,
-                                     image_dir_path,
+                                     backgrounds_dir,
+                                     backgrounds_dir_path,
+                                     foregrounds_dir,
+                                     foregrounds_dir_path,
                                      font_files,
                                      text_dataset,
                                      speech_bubble_files,
@@ -1852,8 +1892,8 @@ def get_base_panels(num_panels=0,
                 # Pick one of all of them and divide into two
                 page_child_chosen = np.random.choice(page.children)
                 choice_idx, left_choices = choose_and_return_other(
-                                                    page_child_chosen
-                                                    )
+                    page_child_chosen
+                )
 
                 choice = page_child_chosen.get_child(choice_idx)
 
@@ -1954,9 +1994,9 @@ def get_base_panels(num_panels=0,
                     choice_min = round((100/n)*0.5)
                     for i in range(0, n):
                         shift_choice = np.random.randint(
-                                                choice_min,
-                                                choice_max
-                                                )
+                            choice_min,
+                            choice_max
+                        )
 
                         choice_max = choice_max + ((100/n) - shift_choice)
                         shifts.append(shift_choice)
@@ -2162,9 +2202,9 @@ def get_base_panels(num_panels=0,
                         choice_min = round((100/n)*0.5)
                         for i in range(0, n):
                             shift_choice = np.random.randint(
-                                            choice_min,
-                                            choice_max
-                                            )
+                                choice_min,
+                                choice_max
+                            )
 
                             choice_max = choice_max + ((100/n) - shift_choice)
                             shifts.append(shift_choice)
@@ -2215,9 +2255,9 @@ def get_base_panels(num_panels=0,
                     choice_min = round((100/n)*0.5)
                     for i in range(0, n):
                         shift_choice = np.random.randint(
-                                            choice_min,
-                                            choice_max
-                                            )
+                            choice_min,
+                            choice_max
+                        )
 
                         choice_max = choice_max + ((100/n) - shift_choice)
                         shifts.append(shift_choice)
@@ -2235,8 +2275,10 @@ def get_base_panels(num_panels=0,
     return page
 
 
-def create_page_metadata(image_dir,
-                         image_dir_path,
+def create_page_metadata(backgrounds_dir,
+                         backgrounds_dir_path,
+                         foregrounds_dir,
+                         foregrounds_dir_path,
                          font_files,
                          text_dataset,
                          speech_bubble_files,
@@ -2302,8 +2344,10 @@ def create_page_metadata(image_dir,
 
     page = shrink_panels(page)
     page = populate_panels(page,
-                           image_dir,
-                           image_dir_path,
+                           backgrounds_dir,
+                           backgrounds_dir_path,
+                           foregrounds_dir,
+                           foregrounds_dir_path,
                            font_files,
                            text_dataset,
                            speech_bubble_files,
@@ -2314,6 +2358,6 @@ def create_page_metadata(image_dir,
         page = remove_panel(page)
 
     if number_of_panels == 1 or np.random.random() < cfg.background_add_chance:
-        page = add_background(page, image_dir, image_dir_path)
+        page = add_background(page, backgrounds_dir, backgrounds_dir_path)
 
     return page

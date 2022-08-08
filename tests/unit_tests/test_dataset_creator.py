@@ -11,7 +11,7 @@ from preprocesing.layout_engine.page_dataset_creator import (
     get_base_panels
 )
 from preprocesing.layout_engine.helpers import invert_for_next, get_leaf_panels
-from preprocesing.layout_engine.page_object_classes import Panel, Page
+from preprocesing.layout_engine.page_objects import Panel, Page
 # from preprocesing import config_file as cfg
 
 

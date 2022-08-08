@@ -1,6 +1,6 @@
 from datetime import datetime
 import json
-from preprocesing.layout_engine.page_object_classes import Page
+from preprocesing.layout_engine.page_objects.page import Page
 from scraping.download_texts import download_and_extract_jesc
 from scraping.download_fonts import get_font_links
 from scraping.download_images import download_db_illustrations
@@ -8,8 +8,8 @@ from scraping.download_images import download_db_illustrations
 from preprocesing.text_dataset_format_changer import convert_jesc_to_dataframe
 from preprocesing.extract_and_verify_fonts import verify_font_files
 from preprocesing.convert_images import convert_images_to_bw
-from preprocesing.layout_engine.page_creator import render_pages
-from preprocesing.layout_engine.page_dataset_creator import (
+from preprocesing.layout_engine.page_renderer import render_pages
+from preprocesing.layout_engine.page_metadata_creator import (
                                                         create_page_metadata
                                                         )
 from tqdm import tqdm
@@ -71,8 +71,10 @@ def _create_metadata(metadata_folder, n_pages, dry):
     # number of pages
     n = n_pages
     print("Loading files")
-    image_dir_path = "datasets/image_dataset/db_illustrations_bw/"
-    image_dir = os.listdir(image_dir_path)
+    backgrounds_dir_path = "datasets/backgrounds/"
+    backgrounds_dir = os.listdir(backgrounds_dir_path)
+    foregrounds_dir_path = "datasets/foregrounds/"
+    foregrounds_dir = os.listdir(foregrounds_dir_path)
 
     text_dataset = pd.read_parquet("datasets/text_dataset/jesc_dialogues")
 
@@ -97,8 +99,10 @@ def _create_metadata(metadata_folder, n_pages, dry):
 
     print("Running creation of metadata")
     for i in tqdm(range(n)):
-        page = create_page_metadata(image_dir,
-                                    image_dir_path,
+        page = create_page_metadata(backgrounds_dir,
+                                    backgrounds_dir_path,
+                                    foregrounds_dir,
+                                    foregrounds_dir_path,
                                     viable_font_files,
                                     text_dataset,
                                     speech_bubble_files,

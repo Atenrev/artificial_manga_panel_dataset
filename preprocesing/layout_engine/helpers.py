@@ -22,7 +22,7 @@ def crop_image_only_outside(img, tol=0):
     # img is 2D image data
     # tol  is tolerance
     mask = img > tol
-    m, n = img.shape
+    m, n, _ = img.shape
 
     mask0, mask1 = mask.any(0), mask.any(1)
 
