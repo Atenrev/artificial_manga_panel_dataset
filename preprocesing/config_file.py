@@ -52,12 +52,17 @@ panel_removal_max = 2
 background_add_chance = 0.8 # 0.01
 
 # **Speech bubbles**
-max_speech_bubbles_per_panel = 3
+max_speech_bubbles_per_panel = 2
 bubble_to_panel_area_max_ratio = 0.4
+bubble_to_panel_object_area_max_ratio = 0.8
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15
 min_font_size = 54
 max_font_size = 72
+
+# **Panel objects**
+object_to_panel_area_max_ratio = 0.4
+max_panel_objects_per_panel = 2
 
 # *Transformations*
 

@@ -2,12 +2,14 @@ import numpy as np
 import math
 import random
 import os
+import pandas
 import pyclipper
-import json
 
 from PIL import Image
+
+from preprocesing.layout_engine.speech_bubble_factory import SpeechBubbleFactory
 from .. import config_file as cfg
-from .page_objects import Panel, Page, SpeechBubble
+from .page_objects import Panel, Page
 from .helpers import (
     invert_for_next, choose, choose_and_return_other,
     get_min_area_panels, get_leaf_panels,
@@ -1414,17 +1416,42 @@ def add_background(page, image_dir, image_dir_path):
     return page
 
 
+def create_panel_object_metadata(
+    panel: Panel,
+    foregrounds_dir: list,
+    foregrounds_dir_path: str
+) -> PanelObject:
+    foregrounds_len = len(foregrounds_dir)
+    foreground_file_idx = np.random.randint(
+        0,
+        foregrounds_len
+    )
+    panel_object_file = os.path.join(
+        foregrounds_dir_path, foregrounds_dir[foreground_file_idx])
+
+    panel_object_img = Image.open(panel_object_file)
+    width, height = panel_object_img.size
+
+    panel_object = PanelObject(
+        panel_object_file,
+        width,
+        height,
+        panel_center_coords=panel.get_center(),
+    )
+
+    return panel_object
+
+
 # Page creators
-def create_single_panel_metadata(panel,
-                                 backgrounds_dir,
-                                 backgrounds_dir_path,
-                                 foregrounds_dir,
-                                 foregrounds_dir_path,
-                                 font_files,
-                                 text_dataset,
-                                 speech_bubble_files,
-                                 speech_bubble_tags,
-                                 minimum_speech_bubbles=0
+def create_single_panel_metadata(panel: Panel,
+                                 backgrounds_dir: list,
+                                 backgrounds_dir_path: str,
+                                 foregrounds_dir: list,
+                                 foregrounds_dir_path: str,
+                                 font_files: list,
+                                 text_dataset: pandas.DataFrame,
+                                 speech_bubble_tags: pandas.DataFrame,
+                                 minimum_speech_bubbles: int = 0
                                  ):
     """
     This is a helper function that populates a single panel with
@@ -1468,6 +1495,8 @@ def create_single_panel_metadata(panel,
 
     :type  minimum_speech_bubbles: int
     """
+    speech_bubble_factory = SpeechBubbleFactory(
+        speech_bubble_tags, font_files, text_dataset)
 
     # Image to be used inside panel
     image_dir_len = len(backgrounds_dir)
@@ -1476,93 +1505,45 @@ def create_single_panel_metadata(panel,
     panel.image = os.path.join(backgrounds_dir_path, background_image)
 
     # Foregrounds
-    num_panel_objects = np.random.randint(minimum_speech_bubbles,
-                                          cfg.max_speech_bubbles_per_panel)
-
-    foregrounds_len = len(foregrounds_dir)
+    num_panel_objects = np.random.randint(0,
+                                          cfg.max_panel_objects_per_panel + 1)
 
     for _ in range(num_panel_objects):
-        foreground_file_idx = np.random.randint(
-            0,
-            foregrounds_len
-        )
-        panel_object_file = os.path.join(
-            foregrounds_dir_path, foregrounds_dir[foreground_file_idx])
-
-        panel_object_img = Image.open(panel_object_file)
-        width, height = panel_object_img.size
-
-        panel_object = PanelObject(
-            panel_object_file,
-            width,
-            height,
-            panel_center_coords=panel.get_center(),
-        )
+        panel_object = create_panel_object_metadata(
+            panel, foregrounds_dir, foregrounds_dir_path)
 
         overlaps = False
         panel_object.place_randomly(panel)
 
+        if np.random.random() < 0.5:
+            speech_bubble = speech_bubble_factory.create_with_orientation(
+                panel_object)
+            speech_bubble.place_randomly(
+                panel_object, cfg.bubble_to_panel_object_area_max_ratio)
+            panel_object.add_speech_bubble(speech_bubble)
+
         for other_panel_object in panel.panel_objects:
             overlaps = overlaps or panel_object.overlaps(other_panel_object)
 
-        # If width or height are greater than panel's, don't add it
-        hr, wr = panel_object.get_resized()
-
-        if not overlaps and hr < panel.height and wr < panel.width:
+        if not overlaps:
             panel.panel_objects.append(panel_object)
 
     # Speech bubbles
     num_speech_bubbles = np.random.randint(minimum_speech_bubbles,
-                                           cfg.max_speech_bubbles_per_panel)
-
-    text_dataset_len = len(text_dataset)
-    font_dataset_len = len(font_files)
-    speech_bubble_tags_noriented_index = speech_bubble_tags["orientation"].isna()
-    speech_bubble_tags_noriented = speech_bubble_tags[speech_bubble_tags_noriented_index]
+                                           cfg.max_speech_bubbles_per_panel + 1)
 
     # Associated speech bubbles
     for speech_bubble in range(num_speech_bubbles):
-
-        # Select a font
-        font_idx = np.random.randint(0, font_dataset_len)
-        font = font_files[font_idx]
-
-        speech_bubble_tags_sample = speech_bubble_tags_noriented.sample()
-
-        speech_bubble_file = speech_bubble_tags_sample["imagename"].values[0]
-
-        speech_bubble_writing_area = speech_bubble_tags_sample['label'].values[0]
-        speech_bubble_writing_area = json.loads(speech_bubble_writing_area)
-        speech_orientation = speech_bubble_tags_sample['orientation'].values[0]
-
-        # Select text for writing areas
-        texts = []
-        text_indices = []
-        for i in range(len(speech_bubble_writing_area)):
-            text_idx = np.random.randint(0, text_dataset_len)
-            text_indices.append(text_idx)
-            text = text_dataset.iloc[text_idx].to_dict()
-            texts.append(text)
-
-        speech_bubble_img = Image.open(speech_bubble_file)
-        w, h = speech_bubble_img.size
-        # Create speech bubble
-        speech_bubble = SpeechBubble(texts=texts,
-                                     text_indices=text_indices,
-                                     font=font,
-                                     speech_bubble=speech_bubble_file,
-                                     writing_areas=speech_bubble_writing_area,
-                                     width=w,
-                                     height=h,
-                                     orientation=speech_orientation,
-                                     panel_center_coords=panel.get_center(),
-                                     )
+        speech_bubble = speech_bubble_factory.create_with_no_orientation(panel)
 
         overlaps = False
-        speech_bubble.place_randomly(panel)
+        speech_bubble.place_randomly(panel, cfg.bubble_to_panel_area_max_ratio)
 
         for other_speech_bubble in panel.speech_bubbles:
             overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)
+
+        for other_panel_object in panel.panel_objects:
+            overlaps = overlaps or speech_bubble.overlaps(other_panel_object)
 
         # If width or height are greater than panel's, don't add it
         hr, wr = speech_bubble.get_resized()
@@ -1571,16 +1552,15 @@ def create_single_panel_metadata(panel,
             panel.speech_bubbles.append(speech_bubble)
 
 
-def populate_panels(page,
-                    backgrounds_dir,
-                    backgrounds_dir_path,
-                    foregrounds_dir,
-                    foregrounds_dir_path,
-                    font_files,
-                    text_dataset,
-                    speech_bubble_files,
-                    speech_bubble_tags,
-                    minimum_speech_bubbles=0
+def populate_panels(page: Page,
+                    backgrounds_dir: list,
+                    backgrounds_dir_path: str,
+                    foregrounds_dir: list,
+                    foregrounds_dir_path: str,
+                    font_files: list,
+                    text_dataset: pandas.DataFrame,
+                    speech_bubble_tags: list,
+                    minimum_speech_bubbles: int = 0
                     ):
     """
     This function takes all the panels and adds backgorund images
@@ -1631,6 +1611,9 @@ def populate_panels(page,
 
     if page.num_panels > 1:
         for child in page.leaf_children:
+            child.refresh_size()
+
+        for child in page.leaf_children:
             create_single_panel_metadata(child,
                                          backgrounds_dir,
                                          backgrounds_dir_path,
@@ -1638,7 +1621,6 @@ def populate_panels(page,
                                          foregrounds_dir_path,
                                          font_files,
                                          text_dataset,
-                                         speech_bubble_files,
                                          speech_bubble_tags,
                                          minimum_speech_bubbles
                                          )
@@ -1650,7 +1632,6 @@ def populate_panels(page,
                                      foregrounds_dir_path,
                                      font_files,
                                      text_dataset,
-                                     speech_bubble_files,
                                      speech_bubble_tags,
                                      minimum_speech_bubbles
                                      )
@@ -2281,7 +2262,6 @@ def create_page_metadata(backgrounds_dir,
                          foregrounds_dir_path,
                          font_files,
                          text_dataset,
-                         speech_bubble_files,
                          speech_bubble_tags):
     """
     This function creates page metadata for a single page. It includes
@@ -2350,7 +2330,6 @@ def create_page_metadata(backgrounds_dir,
                            foregrounds_dir_path,
                            font_files,
                            text_dataset,
-                           speech_bubble_files,
                            speech_bubble_tags
                            )
 

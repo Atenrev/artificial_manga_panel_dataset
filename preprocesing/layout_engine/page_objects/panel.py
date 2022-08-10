@@ -1,3 +1,4 @@
+from re import X
 import numpy as np
 import skimage
 
@@ -5,8 +6,6 @@ from PIL import Image, ImageDraw
 
 from preprocesing.layout_engine.page_objects.panel_object import PanelObject
 from ... import config_file as cfg
-from ..helpers import (add_noise, blank_image,
-                      crop_image_only_outside, get_leaf_panels)
 from .speech_bubble import SpeechBubble
 
 
@@ -75,10 +74,7 @@ class Panel(object):
         self.coords = coords
         self.non_rect = non_rect
 
-        self.width = float((self.x2y2[0] - self.x1y1[0]))
-        self.height = float((self.x3y3[1] - self.x2y2[1]))
-
-        self.area = float(self.width*self.height)
+        self.refresh_size()
 
         area_proportion = round(self.area/(cfg.page_height*cfg.page_width), 2)
         self.area_proportion = area_proportion
@@ -125,6 +121,27 @@ class Panel(object):
                 self.x1y1
             )
 
+    def refresh_size(self):
+        xmin = np.inf; xmax = 0
+        ymin = np.inf; ymax = 0
+
+        for coord in self.coords:
+            x, y = coord
+
+            if x < xmin:
+                xmin = x
+            elif x > xmax:
+                xmax = x
+            
+            if y < ymin:
+                ymin = y
+            elif y > ymax:
+                ymax = y
+
+        self.width = float(xmax - xmin)
+        self.height = float(ymax - ymin)
+        self.area = float(self.width*self.height)
+
     def refresh_coords(self):
         """
         When changes are made to the xy coordinates variables directly
@@ -139,6 +156,7 @@ class Panel(object):
             self.x4y4,
             self.x1y1
         ]
+        self.refresh_size()
 
     def get_random_coords(self):
         r, c = zip(*self.coords)
@@ -151,6 +169,9 @@ class Panel(object):
         r, c = zip(*self.coords)
         x, y = skimage.draw.polygon(r, c)
         return int(np.mean(x)), int(np.mean(y))
+
+    def get_area(self):
+        return self.area
 
     def refresh_vars(self):
         """
@@ -249,26 +270,8 @@ class Panel(object):
         self.image = data['image']
 
         if len(data['speech_bubbles']) > 0:
-            for speech_bubble in data['speech_bubbles']:
-
-                transform_metadata = speech_bubble['transform_metadata']
-                bubble = SpeechBubble(
-                    texts=speech_bubble['texts'],
-                    text_indices=speech_bubble['text_indices'],
-                    font=speech_bubble['font'],
-                    speech_bubble=speech_bubble['speech_bubble'],
-                    writing_areas=speech_bubble['writing_areas'],
-                    resize_to=speech_bubble['resize_to'],
-                    location=speech_bubble['location'],
-                    panel_center_coords=speech_bubble['panel_center_coords'],
-                    width=speech_bubble['width'],
-                    height=speech_bubble['height'],
-                    orientation=speech_bubble['orientation'],
-                    transforms=speech_bubble['transforms'],
-                    transform_metadata=transform_metadata,
-                    text_orientation=speech_bubble['text_orientation']
-                )
-
+            for speech_bubble_data in data['speech_bubbles']:
+                bubble = SpeechBubble.load_data(speech_bubble_data)
                 self.speech_bubbles.append(bubble)
 
         if len(data['panel_objects']) > 0:

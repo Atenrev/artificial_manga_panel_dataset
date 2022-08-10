@@ -5,9 +5,9 @@ import json
 import uuid
 
 from PIL import Image, ImageDraw
-from ..helpers import (add_noise, blank_image,
+from preprocesing.layout_engine.helpers import (add_noise, blank_image,
                       crop_image_only_outside, get_leaf_panels)
-from ... import config_file as cfg
+from preprocesing import config_file as cfg
 from .panel import Panel
 from .speech_bubble import SpeechBubble
 
@@ -160,7 +160,7 @@ class Page(Panel):
                         width=speech_bubble['width'],
                         height=speech_bubble['height'],
                         orientation=speech_bubble['orientation'],
-                        panel_center_coords=speech_bubble['panel_center_coords'],
+                        parent_center_coords=speech_bubble['panel_center_coords'],
                         transforms=speech_bubble['transforms'],
                         transform_metadata=transform_metadata,
                         text_orientation=text_orientation
@@ -219,8 +219,14 @@ class Page(Panel):
             # Fill panel class
             draw_rect.polygon(rect, fill="white")
 
+            for po in panel.panel_objects:
+                panel_object_image, panel_object_mask, location = po.render()
+                green_block = Image.new(
+                    '1', (panel_object_image.width, panel_object_image.height), "white")
+                page_mask.paste(green_block, location, panel_object_mask)
+
             for sb in panel.speech_bubbles:
-                states, bubble, mask, location = sb.render()
+                bubble, mask, location = sb.render()
                 # Slightly shift mask so that you get outline for bubbles
                 new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
                 new_mask_height = mask.size[1]+cfg.bubble_mask_y_increase
@@ -251,7 +257,7 @@ class Page(Panel):
                 # contour = contour.squeeze().tolist()
                 contour = contour.flatten().tolist()
 
-                if len(contour) > 3:
+                if len(contour) > 4:
                     segmentation.append(contour)
                     area += new_area
 
@@ -337,22 +343,10 @@ class Page(Panel):
         for panel in leaf_children:
             if len(panel.panel_objects) < 1 or panel.no_render:
                 continue
-            # For each bubble
+            # For each panel_object
             for po in panel.panel_objects:
                 image, mask, location = po.render()
-                # Slightly shift mask so that you get outline for bubbles
-                new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
-                new_mask_height = mask.size[1]+cfg.bubble_mask_y_increase
-                object_mask = mask.resize((new_mask_width, new_mask_height))
-
-                w, h = image.size
-                crop_dims = (
-                    5, 5,
-                    5+w, 5+h,
-                )
-                # Uses a mask so that the "L" type bubble is cropped
-                object_mask = object_mask.crop(crop_dims)
-                page_img.paste(image, location, object_mask)
+                page_img.paste(image, location, mask)
 
         # Render bubbles
         for panel in leaf_children:
@@ -360,7 +354,7 @@ class Page(Panel):
                 continue
             # For each bubble
             for sb in panel.speech_bubbles:
-                states, bubble, mask, location = sb.render()
+                bubble, mask, location = sb.render()
                 # Slightly shift mask so that you get outline for bubbles
                 new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
                 new_mask_height = mask.size[1]+cfg.bubble_mask_y_increase

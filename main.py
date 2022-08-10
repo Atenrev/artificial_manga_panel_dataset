@@ -80,11 +80,6 @@ def _create_metadata(metadata_folder, n_pages, dry):
 
     speech_bubbles_path = "datasets/speech_bubbles_dataset/"
 
-    speech_bubble_files = os.listdir(speech_bubbles_path+"/files/")
-    speech_bubble_files = [speech_bubbles_path+"files/"+filename
-                            for filename in speech_bubble_files
-                            ]
-
     speech_bubble_tags = pd.read_csv(speech_bubbles_path +
                                         "writing_area_labels.csv")
     font_files_path = "datasets/font_dataset/"
@@ -105,7 +100,6 @@ def _create_metadata(metadata_folder, n_pages, dry):
                                     foregrounds_dir_path,
                                     viable_font_files,
                                     text_dataset,
-                                    speech_bubble_files,
                                     speech_bubble_tags
                                     )
         page.dump_data(metadata_folder, dry=dry)

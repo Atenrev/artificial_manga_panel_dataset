@@ -76,7 +76,7 @@ class SpeechBubble(object):
                  width,
                  height,
                  orientation,
-                 panel_center_coords,
+                 parent_center_coords,
                  location=None,
                  resize_to=None,
                  transforms=None,
@@ -103,8 +103,8 @@ class SpeechBubble(object):
         if location is not None:
             self.location = location
 
-        if panel_center_coords is not None:
-            self.panel_center_coords = panel_center_coords
+        if parent_center_coords is not None:
+            self.parent_center_coords = parent_center_coords
 
         self.transform_metadata = {}
         if transform_metadata is not None:
@@ -169,23 +169,21 @@ class SpeechBubble(object):
                                            max_font_size
                                            )
 
-    def place_randomly(self, panel):
+    def place_randomly(self, parent, max_ratio: float = 1.0):
         """
         A method to place the SpeechBubble in a random location
-        inside the panel.
+        inside the parent.
 
         :param panel: The panel in which the SpeechBubble will
         be placed
 
         :type  panel: Panel
         """
-        # resize bubble to < 40% of panel area
-        max_area = panel.area*cfg.bubble_to_panel_area_max_ratio
-        new_area = np.random.random()*(max_area - max_area*0.25)  # TODO: Parametrize
-        new_area = max_area - new_area
+        max_area = parent.get_area() * max_ratio
+        new_area = max_area - np.random.random() * (max_area*0.4) # TODO: Parametrize
         self.resize_to = new_area
 
-        x_choice, y_choice = panel.get_random_coords()
+        x_choice, y_choice = parent.get_random_coords()
 
         self.location = [
             x_choice,
@@ -261,7 +259,7 @@ class SpeechBubble(object):
             writing_areas=self.writing_areas,
             resize_to=self.resize_to,
             location=self.location,
-            panel_center_coords=self.panel_center_coords,
+            parent_center_coords=self.parent_center_coords,
             width=self.width,
             height=self.height,
             orientation=self.orientation,
@@ -271,6 +269,25 @@ class SpeechBubble(object):
         )
 
         return data
+
+    @classmethod
+    def load_data(cls, data: dict):
+        return cls(
+            texts=data['texts'],
+            text_indices=data['text_indices'],
+            font=data['font'],
+            speech_bubble=data['speech_bubble'],
+            writing_areas=data['writing_areas'],
+            resize_to=data['resize_to'],
+            location=data['location'],
+            parent_center_coords=data['parent_center_coords'],
+            width=data['width'],
+            height=data['height'],
+            orientation=data['orientation'],
+            transforms=data['transforms'],
+            transform_metadata=data['transform_metadata'],
+            text_orientation=data['text_orientation']
+        )
 
     def render(self):
         """
@@ -532,72 +549,38 @@ class SpeechBubble(object):
         mask = mask.resize((new_width, new_height))
 
         # Make sure bubble doesn't bleed the page
-        # xcenter, ycenter = self.location
-        # # center bubble in coordinates
-        # x1 = xcenter - new_width // 2
-        # y1 = ycenter - new_height // 2
-        # x2 = x1 + bubble.size[0]
-        # y2 = y1 + bubble.size[1]
+        xcenter, ycenter = self.location
+        # center bubble in coordinates
+        x1 = xcenter - new_width // 2
+        y1 = ycenter - new_height // 2
+        x2 = x1 + bubble.size[0]
+        y2 = y1 + bubble.size[1]
 
-        # if x2 > cfg.page_width:
-        #     x1 = x1 - (x2-cfg.page_width)
-        # elif x1 < 0:
-        #     xcenter -= x1
-        #     x1 = 0
-        # if y2 > cfg.page_height:
-        #     y1 = y1 - (y2-cfg.page_height)
-        # elif y1 < 0:
-        #     ycenter -= y1
-        #     y1 = 0
+        if x2 > cfg.page_width:
+            x1 = x1 - (x2-cfg.page_width)
+        elif x1 < 0:
+            xcenter -= x1
+            x1 = 0
+        if y2 > cfg.page_height:
+            y1 = y1 - (y2-cfg.page_height)
+        elif y1 < 0:
+            ycenter -= y1
+            y1 = 0
 
-        # self.location = (x1, y1)
+        self.location = (x1, y1)
 
-        # dx = self.panel_center_coords[0] - xcenter
-        # dy = self.panel_center_coords[1] - ycenter
+        dx = self.parent_center_coords[0] - xcenter
+        dy = self.parent_center_coords[1] - ycenter
 
-        # if type(self.orientation) is str and (dy > 0 and self.orientation[0] == 't'
-        #                                       or dy < 0 and self.orientation[0] == 'b'):
-        #     bubble = ImageOps.flip(bubble)
-        #     mask = ImageOps.flip(mask)
-        #     # TODO: vertically flip box coordinates
-        #     new_writing_areas = []
-        #     for area in self.writing_areas:
-        #         og_height = area['original_height']
+        if type(self.orientation) is str and (dy > 0 and self.orientation[0] == 't'
+                                              or dy < 0 and self.orientation[0] == 'b'):
+            bubble = ImageOps.flip(bubble)
+            mask = ImageOps.flip(mask)
 
-        #         # Convert from percentage to actual values
-        #         px_height = (area['height']/100)*og_height
-
-        #         og_y = ((area['y']/100)*og_height)
-        #         cydist = abs(cy - og_y)
-        #         new_y = (2*cydist + og_y) - px_height
-        #         new_y = (new_y/og_height)*100
-        #         area['y'] = new_y
-        #         new_writing_areas.append(area)
-
-        #     self.writing_areas = new_writing_areas
-        #     states.append("vflip")
-
-        # if type(self.orientation) is str and (dx > 0 and self.orientation[1] == 'l'
-        #                                       or dx < 0 and self.orientation[1] == 'r'):
-        #     bubble = ImageOps.mirror(bubble)
-        #     mask = ImageOps.mirror(mask)
-        #     new_writing_areas = []
-        #     for area in self.writing_areas:
-        #         og_width = area['original_width']
-
-        #         # Convert from percentage to actual values
-        #         px_width = (area['width']/100)*og_width
-
-        #         og_x = ((area['x']/100)*og_width)
-        #         # og_y = ((area['y']/100)*og_height)
-        #         cxdist = abs(cx - og_x)
-        #         new_x = (2*cxdist + og_x) - px_width
-        #         new_x = (new_x/og_width)*100
-        #         area['x'] = new_x
-        #         new_writing_areas.append(area)
-
-        #     self.writing_areas = new_writing_areas
-        #     states.append("hflip")
+        if type(self.orientation) is str and (dx > 0 and self.orientation[1] == 'l'
+                                              or dx < 0 and self.orientation[1] == 'r'):
+            bubble = ImageOps.mirror(bubble)
+            mask = ImageOps.mirror(mask)
 
         # perform rotation if it was in transforms
         # TODO: Fix issue of bad crops with rotation
@@ -606,4 +589,4 @@ class SpeechBubble(object):
             bubble = bubble.rotate(rotation)
             mask = mask.rotate(rotation)
 
-        return states, bubble, mask, self.location
+        return bubble, mask, self.location
