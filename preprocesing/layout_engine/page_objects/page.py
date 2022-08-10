@@ -160,7 +160,7 @@ class Page(Panel):
                         width=speech_bubble['width'],
                         height=speech_bubble['height'],
                         orientation=speech_bubble['orientation'],
-                        parent_center_coords=speech_bubble['panel_center_coords'],
+                        parent_center_coords=speech_bubble['parent_center_coords'],
                         transforms=speech_bubble['transforms'],
                         transform_metadata=transform_metadata,
                         text_orientation=text_orientation
@@ -291,12 +291,12 @@ class Page(Panel):
         """
 
         leaf_children = []
-        if self.num_panels > 1:
-            # Get all the panels to be rendered
-            if len(self.leaf_children) < 1:
-                get_leaf_panels(self, leaf_children)
-            else:
-                leaf_children = self.leaf_children
+        # if self.num_panels > 1:
+        # Get all the panels to be rendered
+        if len(self.leaf_children) < 1:
+            get_leaf_panels(self, leaf_children)
+        else:
+            leaf_children = self.leaf_children
 
         W = cfg.page_width
         H = cfg.page_height
@@ -337,8 +337,8 @@ class Page(Panel):
             page_img.paste(panel_img, (0, 0), panel_mask)
 
         # If it's a single panel page
-        if self.num_panels < 2:
-            leaf_children.append(self)
+        # if self.num_panels < 2:
+        #     leaf_children.append(self)
 
         for panel in leaf_children:
             if len(panel.panel_objects) < 1 or panel.no_render:

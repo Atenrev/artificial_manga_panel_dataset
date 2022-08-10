@@ -35,6 +35,8 @@ vertical_horizontal_ratios = {
     "vh": 0.8
 }
 
+solid_background_probability = 0.75
+
 # Panel transform chance
 
 panel_transform_chance = 0.30

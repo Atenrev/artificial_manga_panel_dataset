@@ -46,15 +46,24 @@ def draw_n_shifted(n, parent, horizontal_vertical, shifts=[]):
     :type shifts: list
     """
 
-    # if input out of bounds i.e. 1:
-    if n == 1:
-        return parent
-
     # Specify parent panel dimensions
     topleft = parent.x1y1
     topright = parent.x2y2
     bottomright = parent.x3y3
     bottomleft = parent.x4y4
+
+    # if input out of bounds i.e. 1:
+    if n == 1:
+        poly_coords = (topleft, topright, bottomright, bottomleft, topleft)
+        panel = Panel(poly_coords,
+                        parent.name+"-0",
+                        orientation=horizontal_vertical,
+                        parent=parent,
+                        children=[]
+                        )
+
+        parent.add_child(panel)
+        return parent
 
     # Allow each inital panel to grow to up to 150% of 100/n
     # which would be all panel's equal.
@@ -228,15 +237,23 @@ def draw_n(n, parent, horizontal_vertical):
 
     :type horizontal_vertical: str
     """
-    # if input out of bounds i.e. 1:
-    if n == 1:
-        return parent
-
     # Specify parent panel dimensions
     topleft = parent.x1y1
     topright = parent.x2y2
     bottomright = parent.x3y3
     bottomleft = parent.x4y4
+
+    # if input out of bounds i.e. 1:
+    if n == 1:
+        poly_coords = (topleft, topright, bottomright, bottomleft, topleft)
+        panel = Panel(poly_coords,
+                        parent.name+"-0",
+                        orientation=horizontal_vertical,
+                        parent=parent,
+                        children=[]
+                        )
+
+        parent.add_child(panel)
 
     # If the panel is horizontal to the page
     if horizontal_vertical == "h":
@@ -1406,7 +1423,7 @@ def add_background(page, image_dir, image_dir_path):
     :rtype: Page
     """
 
-    if np.random.random() < 0.8:
+    if np.random.random() < cfg.solid_background_probability:
         page.background = "#color"
     else:
         image_dir_len = len(image_dir)
@@ -1559,7 +1576,7 @@ def populate_panels(page: Page,
                     foregrounds_dir_path: str,
                     font_files: list,
                     text_dataset: pandas.DataFrame,
-                    speech_bubble_tags: list,
+                    speech_bubble_tags: pandas.DataFrame,
                     minimum_speech_bubbles: int = 0
                     ):
     """
@@ -1609,32 +1626,32 @@ def populate_panels(page: Page,
     :rtype: Page
     """
 
-    if page.num_panels > 1:
-        for child in page.leaf_children:
-            child.refresh_size()
+    # if page.num_panels > 1:
+    for child in page.leaf_children:
+        child.refresh_size()
 
-        for child in page.leaf_children:
-            create_single_panel_metadata(child,
-                                         backgrounds_dir,
-                                         backgrounds_dir_path,
-                                         foregrounds_dir,
-                                         foregrounds_dir_path,
-                                         font_files,
-                                         text_dataset,
-                                         speech_bubble_tags,
-                                         minimum_speech_bubbles
-                                         )
-    else:
-        create_single_panel_metadata(page,
-                                     backgrounds_dir,
-                                     backgrounds_dir_path,
-                                     foregrounds_dir,
-                                     foregrounds_dir_path,
-                                     font_files,
-                                     text_dataset,
-                                     speech_bubble_tags,
-                                     minimum_speech_bubbles
-                                     )
+    for child in page.leaf_children:
+        create_single_panel_metadata(child,
+                                        backgrounds_dir,
+                                        backgrounds_dir_path,
+                                        foregrounds_dir,
+                                        foregrounds_dir_path,
+                                        font_files,
+                                        text_dataset,
+                                        speech_bubble_tags,
+                                        minimum_speech_bubbles
+                                        )
+    # else:
+    #     create_single_panel_metadata(page,
+    #                                  backgrounds_dir,
+    #                                  backgrounds_dir_path,
+    #                                  foregrounds_dir,
+    #                                  foregrounds_dir_path,
+    #                                  font_files,
+    #                                  text_dataset,
+    #                                  speech_bubble_tags,
+    #                                  minimum_speech_bubbles
+    #                                  )
     return page
 
 
@@ -1726,13 +1743,13 @@ def get_base_panels(num_panels=0,
         else:
             page.num_panels = num_panels
 
-        if num_panels == 2:
+        if num_panels <= 2:
             # Draw 2 rectangles
             # vertically or horizontally
             horizontal_vertical = np.random.choice(["h", "v"])
-            draw_two_shifted(page, horizontal_vertical)
+            draw_n_shifted(num_panels, page, horizontal_vertical)
 
-        if num_panels == 3:
+        elif num_panels == 3:
             # Draw 2 rectangles
             # Vertically or Horizontally
 
@@ -1747,7 +1764,7 @@ def get_base_panels(num_panels=0,
 
             draw_two_shifted(choice, next_div)
 
-        if num_panels == 4:
+        elif num_panels == 4:
             horizontal_vertical = np.random.choice(["h", "v"])
 
             # Possible layouts with 4 panels
@@ -1820,7 +1837,7 @@ def get_base_panels(num_panels=0,
 
                 draw_n_shifted(3, choice, next_div)
 
-        if num_panels == 5:
+        elif num_panels == 5:
 
             # Draw two rectangles
             horizontal_vertical = np.random.choice(["h", "v"])
@@ -1928,7 +1945,7 @@ def get_base_panels(num_panels=0,
                 next_div = invert_for_next(horizontal_vertical)
                 draw_two_shifted(choice, next_div)
 
-        if num_panels == 6:
+        elif num_panels == 6:
 
             # Possible layouts with 6 panels
             if type_choice is None:
@@ -2009,7 +2026,7 @@ def get_base_panels(num_panels=0,
                 draw_two_shifted(choice1, next_div)
                 draw_two_shifted(choice2, next_div)
 
-        if num_panels == 7:
+        elif num_panels == 7:
 
             # Possible layouts with 7 panels
             types = ["twothreefour", "threethreetwotwo", "threefourtwoone",
@@ -2132,7 +2149,7 @@ def get_base_panels(num_panels=0,
                 for panel in left_choices:
                     draw_two_shifted(page.get_child(panel), next_div)
 
-        if num_panels == 8:
+        elif num_panels == 8:
 
             # Possible layouts for 8 panels
             types = ["fourfourxtwoeq", "fourfourxtwouneq",
@@ -2316,11 +2333,12 @@ def create_page_metadata(backgrounds_dir,
         list(cfg.num_pages_ratios.keys()),
         p=list(cfg.num_pages_ratios.values())
     )
+    number_of_panels = 1
 
     page = get_base_panels(number_of_panels, page_type)
 
-    if np.random.random() < cfg.panel_transform_chance:
-        page = add_transforms(page)
+    # if np.random.random() < cfg.panel_transform_chance:
+    #     page = add_transforms(page)
 
     page = shrink_panels(page)
     page = populate_panels(page,
