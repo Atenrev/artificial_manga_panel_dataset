@@ -467,7 +467,7 @@ def draw_two_shifted(parent, horizontal_vertical, shift=None):
 
 
 # Page transformations
-def single_slice_panels(page,
+def single_slice_panels(page: Page,
                         horizontal_vertical=None,
                         type_choice=None,
                         skew_side=None,
@@ -565,6 +565,10 @@ def single_slice_panels(page,
                 p1 = panel.get_child(0)
                 p2 = panel.get_child(1)
 
+                # Panels are non standard polygons
+                p1.non_rect = True
+                p2.non_rect = True
+
                 p1.sliced = True
                 p2.sliced = True
                 if skew_side == "left":
@@ -590,8 +594,7 @@ def single_slice_panels(page,
                     p2.refresh_coords()
 
                 else:
-                    print("Chosen incorrect skew side")
-                    return None
+                    raise Exception("Incorrect skew side chosen")
 
             # Horizontal slice
             else:
@@ -610,6 +613,10 @@ def single_slice_panels(page,
 
                 p1 = panel.get_child(0)
                 p2 = panel.get_child(1)
+
+                # Panels are non standard polygons
+                p1.non_rect = True
+                p2.non_rect = True
 
                 p1.sliced = True
                 p2.sliced = True
@@ -719,15 +726,15 @@ def single_slice_panels(page,
                 p2.coords = [panel.x1y1, p1_cut_x1y1, p1_cut_x3y3,
                              panel.x3y3, panel.x4y4, panel.x1y1]
             else:
-                print("Chose incorrect skew side")
-                return None
+                raise Exception("Incorrect skew side chosen")
+
 
     page.num_panels += num_panels_added
 
     return page
 
 
-def box_transform_panels(page, type_choice=None, pattern=None):
+def box_transform_panels(page: Page, type_choice=None, pattern=None):
     """
     This function move panel boundaries to transform them
     into trapezoids and rhombuses
@@ -760,393 +767,405 @@ def box_transform_panels(page, type_choice=None, pattern=None):
             type_choice = "rhombus"
 
     if type_choice == "trapezoid":
-        if page.num_panels > 2:
+        if page.num_panels <= 2:
+            return page
 
-            # Get parent panel which satisfies the criteria for the transform
-            relevant_panels = find_parent_with_multiple_children(page, 3)
+        # Get parent panel which satisfies the criteria for the transform
+        relevant_panels = find_parent_with_multiple_children(page, 3)
 
-            if len(relevant_panels) > 0:
-                if len(relevant_panels) > 1:
-                    num_panels = np.random.randint(1, len(relevant_panels)+1)
+        if len(relevant_panels) > 0:
+            if len(relevant_panels) > 1:
+                num_panels = np.random.randint(1, len(relevant_panels)+1)
+            else:
+                num_panels = 1
+
+            # For each panel
+            for idx in range(num_panels):
+                panel = relevant_panels[idx]
+
+                # Get the three child panels
+                # Since panels are created in order
+                p1 = panel.get_child(0)
+                p2 = panel.get_child(1)
+                p3 = panel.get_child(2)
+
+                # Panels are non standard polygons
+                p1.non_rect = True
+                p2.non_rect = True
+                p3.non_rect = True
+
+                min_width = math.inf
+                min_height = math.inf
+
+                # Get the smallest height and width
+                for child in [p1, p2, p3]:
+
+                    if child.width < min_width:
+                        min_width = child.width
+
+                    if child.height < min_height:
+                        min_height = child.height
+
+                # Choose trapezoid pattern
+                if pattern is None:
+                    trapezoid_pattern = np.random.choice(["A", "V"])
                 else:
-                    num_panels = 1
+                    trapezoid_pattern = pattern
 
-                # For each panel
-                for idx in range(num_panels):
-                    panel = relevant_panels[idx]
+                movement_proportion = np.random.randint(
+                    10,
+                    cfg.trapezoid_movement_limit)
 
-                    # Get the three child panels
-                    # Since panels are created in order
-                    p1 = panel.get_child(0)
-                    p2 = panel.get_child(1)
-                    p3 = panel.get_child(2)
+                # If parent panel is horizontal the children are vertical
+                if panel.orientation == "h":
 
-                    min_width = math.inf
-                    min_height = math.inf
+                    # Get how much the lines of the child panels move
+                    # on the x axis to make the trapezoid
+                    x_movement = min_width*(movement_proportion/100)
 
-                    # Get the smallest height and width
-                    for child in [p1, p2, p3]:
+                    # Make an A pattern horizontally
+                    if trapezoid_pattern == "A":
 
-                        if child.width < min_width:
-                            min_width = child.width
+                        # Get the coords of the first line to be moved
+                        line_one_top = (p1.x2y2[0] + x_movement,
+                                        p1.x2y2[1])
 
-                        if child.height < min_height:
-                            min_height = child.height
+                        line_one_bottom = (p1.x3y3[0] - x_movement,
+                                            p1.x3y3[1])
 
-                    # Choose trapezoid pattern
-                    if pattern is None:
-                        trapezoid_pattern = np.random.choice(["A", "V"])
+                        # Move line between child 1 and 2
+                        p1.x2y2 = line_one_top
+                        p1.x3y3 = line_one_bottom
+
+                        p1.refresh_coords()
+
+                        p2.x1y1 = line_one_top
+                        p2.x4y4 = line_one_bottom
+
+                        # Get the coords of the second line to be moved
+                        line_two_top = (p2.x2y2[0] - x_movement,
+                                        p2.x2y2[1])
+                        line_two_bottom = (p2.x3y3[0] + x_movement,
+                                            p2.x3y3[1])
+
+                        # Move line two between child 2 and 3
+                        p2.x2y2 = line_two_top
+                        p2.x3y3 = line_two_bottom
+
+                        p2.refresh_coords()
+
+                        p3.x1y1 = line_two_top
+                        p3.x4y4 = line_two_bottom
+
+                        p3.refresh_coords()
+
+                    # Make a V pattern horizontally
                     else:
-                        trapezoid_pattern = pattern
 
-                    movement_proportion = np.random.randint(
-                        10,
-                        cfg.trapezoid_movement_limit)
+                        # Get the coords of the first line to be moved
+                        line_one_top = (p1.x2y2[0] - x_movement,
+                                        p1.x2y2[1])
 
-                    # If parent panel is horizontal the children are vertical
-                    if panel.orientation == "h":
+                        line_one_bottom = (p1.x3y3[0] + x_movement,
+                                            p1.x3y3[1])
 
-                        # Get how much the lines of the child panels move
-                        # on the x axis to make the trapezoid
-                        x_movement = min_width*(movement_proportion/100)
+                        # Move line between child 1 and 2
+                        p1.x2y2 = line_one_top
+                        p1.x3y3 = line_one_bottom
 
-                        # Make an A pattern horizontally
-                        if trapezoid_pattern == "A":
+                        p1.refresh_coords()
 
-                            # Get the coords of the first line to be moved
-                            line_one_top = (p1.x2y2[0] + x_movement,
-                                            p1.x2y2[1])
+                        p2.x1y1 = line_one_top
+                        p2.x4y4 = line_one_bottom
 
-                            line_one_bottom = (p1.x3y3[0] - x_movement,
-                                               p1.x3y3[1])
+                        # Get the coords of the second line to be moved
+                        line_two_top = (p2.x2y2[0] + x_movement,
+                                        p2.x2y2[1])
 
-                            # Move line between child 1 and 2
-                            p1.x2y2 = line_one_top
-                            p1.x3y3 = line_one_bottom
+                        line_two_bottom = (p2.x3y3[0] - x_movement,
+                                            p2.x3y3[1])
 
-                            p1.refresh_coords()
+                        # Move line two between child 2 and 3
+                        p2.x2y2 = line_two_top
+                        p2.x3y3 = line_two_bottom
 
-                            p2.x1y1 = line_one_top
-                            p2.x4y4 = line_one_bottom
+                        p2.refresh_coords()
 
-                            # Get the coords of the second line to be moved
-                            line_two_top = (p2.x2y2[0] - x_movement,
-                                            p2.x2y2[1])
-                            line_two_bottom = (p2.x3y3[0] + x_movement,
-                                               p2.x3y3[1])
+                        p3.x1y1 = line_two_top
+                        p3.x4y4 = line_two_bottom
 
-                            # Move line two between child 2 and 3
-                            p2.x2y2 = line_two_top
-                            p2.x3y3 = line_two_bottom
+                        p3.refresh_coords()
 
-                            p2.refresh_coords()
+                # If panel is vertical children are horizontal
+                # so the A and the V are at 90 degrees to the page
+                else:
+                    # Get how much the lines of the child panels move
+                    # on the y axis to make the trapezoid
+                    y_movement = min_height*(movement_proportion/100)
 
-                            p3.x1y1 = line_two_top
-                            p3.x4y4 = line_two_bottom
+                    # Make an A pattern vertically
+                    if trapezoid_pattern == "A":
 
-                            p3.refresh_coords()
+                        # Get the coords of the first line to be moved
+                        line_one_top = (p2.x2y2[0],
+                                        p2.x2y2[1] + y_movement)
 
-                        # Make a V pattern horizontally
-                        else:
+                        line_one_bottom = (p2.x1y1[0],
+                                            p2.x1y1[1] - y_movement)
 
-                            # Get the coords of the first line to be moved
-                            line_one_top = (p1.x2y2[0] - x_movement,
-                                            p1.x2y2[1])
+                        # Move line between child 1 and 2
+                        p2.x2y2 = line_one_top
+                        p2.x1y1 = line_one_bottom
 
-                            line_one_bottom = (p1.x3y3[0] + x_movement,
-                                               p1.x3y3[1])
+                        p1.x3y3 = line_one_top
+                        p1.x4y4 = line_one_bottom
 
-                            # Move line between child 1 and 2
-                            p1.x2y2 = line_one_top
-                            p1.x3y3 = line_one_bottom
+                        p1.refresh_coords()
 
-                            p1.refresh_coords()
+                        # Get the coords of the second line to be moved
+                        line_two_top = (p2.x3y3[0],
+                                        p2.x3y3[1] - y_movement)
 
-                            p2.x1y1 = line_one_top
-                            p2.x4y4 = line_one_bottom
+                        line_two_bottom = (p2.x4y4[0],
+                                            p2.x4y4[1] + y_movement)
 
-                            # Get the coords of the second line to be moved
-                            line_two_top = (p2.x2y2[0] + x_movement,
-                                            p2.x2y2[1])
+                        # Move line two between child 2 and 3
+                        p2.x3y3 = line_two_top
+                        p2.x4y4 = line_two_bottom
 
-                            line_two_bottom = (p2.x3y3[0] - x_movement,
-                                               p2.x3y3[1])
+                        p2.refresh_coords()
 
-                            # Move line two between child 2 and 3
-                            p2.x2y2 = line_two_top
-                            p2.x3y3 = line_two_bottom
+                        p3.x1y1 = line_two_bottom
+                        p3.x2y2 = line_two_top
 
-                            p2.refresh_coords()
-
-                            p3.x1y1 = line_two_top
-                            p3.x4y4 = line_two_bottom
-
-                            p3.refresh_coords()
-
-                    # If panel is vertical children are horizontal
-                    # so the A and the V are at 90 degrees to the page
+                        p3.refresh_coords()
+                    # Make a V pattern vertically
                     else:
-                        # Get how much the lines of the child panels move
-                        # on the y axis to make the trapezoid
-                        y_movement = min_height*(movement_proportion/100)
 
-                        # Make an A pattern vertically
-                        if trapezoid_pattern == "A":
+                        # Get the coords of the first line to be moved
+                        line_one_top = (p2.x2y2[0],
+                                        p2.x2y2[1] - y_movement)
 
-                            # Get the coords of the first line to be moved
-                            line_one_top = (p2.x2y2[0],
-                                            p2.x2y2[1] + y_movement)
+                        line_one_bottom = (p2.x1y1[0],
+                                            p2.x1y1[1] + y_movement)
 
-                            line_one_bottom = (p2.x1y1[0],
-                                               p2.x1y1[1] - y_movement)
+                        # Move line between child 1 and 2
+                        p2.x2y2 = line_one_top
+                        p2.x1y1 = line_one_bottom
 
-                            # Move line between child 1 and 2
-                            p2.x2y2 = line_one_top
-                            p2.x1y1 = line_one_bottom
+                        p1.x3y3 = line_one_top
+                        p1.x4y4 = line_one_bottom
 
-                            p1.x3y3 = line_one_top
-                            p1.x4y4 = line_one_bottom
+                        p1.refresh_coords()
+                        # Get the coords of the second line to be moved
+                        line_two_top = (p2.x3y3[0],
+                                        p2.x3y3[1] + y_movement)
 
-                            p1.refresh_coords()
+                        line_two_bottom = (p2.x4y4[0],
+                                            p2.x4y4[1] - y_movement)
 
-                            # Get the coords of the second line to be moved
-                            line_two_top = (p2.x3y3[0],
-                                            p2.x3y3[1] - y_movement)
+                        # Move line two between child 2 and 3
+                        p2.x3y3 = line_two_top
+                        p2.x4y4 = line_two_bottom
 
-                            line_two_bottom = (p2.x4y4[0],
-                                               p2.x4y4[1] + y_movement)
+                        p2.refresh_coords()
+                        p3.x1y1 = line_two_bottom
+                        p3.x2y2 = line_two_top
 
-                            # Move line two between child 2 and 3
-                            p2.x3y3 = line_two_top
-                            p2.x4y4 = line_two_bottom
-
-                            p2.refresh_coords()
-
-                            p3.x1y1 = line_two_bottom
-                            p3.x2y2 = line_two_top
-
-                            p3.refresh_coords()
-                        # Make a V pattern vertically
-                        else:
-
-                            # Get the coords of the first line to be moved
-                            line_one_top = (p2.x2y2[0],
-                                            p2.x2y2[1] - y_movement)
-
-                            line_one_bottom = (p2.x1y1[0],
-                                               p2.x1y1[1] + y_movement)
-
-                            # Move line between child 1 and 2
-                            p2.x2y2 = line_one_top
-                            p2.x1y1 = line_one_bottom
-
-                            p1.x3y3 = line_one_top
-                            p1.x4y4 = line_one_bottom
-
-                            p1.refresh_coords()
-                            # Get the coords of the second line to be moved
-                            line_two_top = (p2.x3y3[0],
-                                            p2.x3y3[1] + y_movement)
-
-                            line_two_bottom = (p2.x4y4[0],
-                                               p2.x4y4[1] - y_movement)
-
-                            # Move line two between child 2 and 3
-                            p2.x3y3 = line_two_top
-                            p2.x4y4 = line_two_bottom
-
-                            p2.refresh_coords()
-                            p3.x1y1 = line_two_bottom
-                            p3.x2y2 = line_two_top
-
-                            p3.refresh_coords()
+                        p3.refresh_coords()
 
     elif type_choice == "rhombus":
 
-        if page.num_panels > 1:
+        if page.num_panels <= 1:
+            return page
 
-            # Get parent panel which satisfies the criteria for the transform
-            relevant_panels = find_parent_with_multiple_children(page, 3)
+        # Get parent panel which satisfies the criteria for the transform
+        relevant_panels = find_parent_with_multiple_children(page, 3)
 
-            if len(relevant_panels) > 0:
+        if len(relevant_panels) > 0:
 
-                if len(relevant_panels) > 1:
-                    num_panels = np.random.randint(1, len(relevant_panels))
+            if len(relevant_panels) > 1:
+                num_panels = np.random.randint(1, len(relevant_panels))
+            else:
+                num_panels = 1
+
+            for idx in range(0, num_panels):
+
+                panel = relevant_panels[idx]
+
+                # Since panels are created in order
+                p1 = panel.get_child(0)
+                p2 = panel.get_child(1)
+                p3 = panel.get_child(2)
+
+                # Panels are non standard polygons
+                p1.non_rect = True
+                p2.non_rect = True
+                p3.non_rect = True
+
+                min_width = math.inf
+                min_height = math.inf
+
+                # Get the smallest height and width
+                for child in [p1, p2, p3]:
+
+                    if child.width < min_width:
+                        min_width = child.width
+
+                    if child.height < min_height:
+                        min_height = child.height
+
+                if pattern is None:
+                    rhombus_pattern = np.random.choice(["left", "right"])
                 else:
-                    num_panels = 1
+                    rhombus_pattern = pattern
 
-                for idx in range(0, num_panels):
+                movement_proportion = np.random.randint(
+                    10,
+                    cfg.rhombus_movement_limit
+                )
 
-                    panel = relevant_panels[idx]
+                # Logic for the section below is the same as the
+                # trapezoid with the exception of the fact that the
+                # rhombus pattern happens to move both lines in the
+                # same direction
 
-                    # Since panels are created in order
-                    p1 = panel.get_child(0)
-                    p2 = panel.get_child(1)
-                    p3 = panel.get_child(2)
+                if panel.orientation == "h":
 
-                    min_width = math.inf
-                    min_height = math.inf
+                    x_movement = min_width*(movement_proportion/100)
 
-                    # Get the smallest height and width
-                    for child in [p1, p2, p3]:
+                    if rhombus_pattern == "left":
+                        line_one_top = (p1.x2y2[0] - x_movement,
+                                        p1.x2y2[1])
 
-                        if child.width < min_width:
-                            min_width = child.width
+                        line_one_bottom = (p1.x3y3[0] + x_movement,
+                                            p1.x3y3[1])
 
-                        if child.height < min_height:
-                            min_height = child.height
+                        p1.x2y2 = line_one_top
+                        p1.x3y3 = line_one_bottom
 
-                    if pattern is None:
-                        rhombus_pattern = np.random.choice(["left", "right"])
+                        p1.refresh_coords()
+
+                        p2.x1y1 = line_one_top
+                        p2.x4y4 = line_one_bottom
+
+                        line_two_top = (p2.x2y2[0] - x_movement,
+                                        p2.x2y2[1])
+
+                        line_two_bottom = (p2.x3y3[0] + x_movement,
+                                            p2.x3y3[1])
+
+                        p2.x2y2 = line_two_top
+                        p2.x3y3 = line_two_bottom
+
+                        p2.refresh_coords()
+
+                        p3.x1y1 = line_two_top
+                        p3.x4y4 = line_two_bottom
+
+                        p3.refresh_coords()
+
                     else:
-                        rhombus_pattern = pattern
 
-                    movement_proportion = np.random.randint(
-                        10,
-                        cfg.rhombus_movement_limit
-                    )
+                        line_one_top = (p1.x2y2[0] + x_movement,
+                                        p1.x2y2[1])
 
-                    # Logic for the section below is the same as the
-                    # trapezoid with the exception of the fact that the
-                    # rhombus pattern happens to move both lines in the
-                    # same direction
+                        line_one_bottom = (p1.x3y3[0] - x_movement,
+                                            p1.x3y3[1])
 
-                    if panel.orientation == "h":
+                        p1.x2y2 = line_one_top
+                        p1.x3y3 = line_one_bottom
 
-                        x_movement = min_width*(movement_proportion/100)
+                        p1.refresh_coords()
 
-                        if rhombus_pattern == "left":
-                            line_one_top = (p1.x2y2[0] - x_movement,
-                                            p1.x2y2[1])
+                        p2.x1y1 = line_one_top
+                        p2.x4y4 = line_one_bottom
 
-                            line_one_bottom = (p1.x3y3[0] + x_movement,
-                                               p1.x3y3[1])
+                        line_two_top = (p2.x2y2[0] + x_movement,
+                                        p2.x2y2[1])
 
-                            p1.x2y2 = line_one_top
-                            p1.x3y3 = line_one_bottom
+                        line_two_bottom = (p2.x3y3[0] - x_movement,
+                                            p2.x3y3[1])
 
-                            p1.refresh_coords()
+                        p2.x2y2 = line_two_top
+                        p2.x3y3 = line_two_bottom
 
-                            p2.x1y1 = line_one_top
-                            p2.x4y4 = line_one_bottom
+                        p2.refresh_coords()
 
-                            line_two_top = (p2.x2y2[0] - x_movement,
-                                            p2.x2y2[1])
+                        p3.x1y1 = line_two_top
+                        p3.x4y4 = line_two_bottom
 
-                            line_two_bottom = (p2.x3y3[0] + x_movement,
-                                               p2.x3y3[1])
+                        p3.refresh_coords()
+                else:
+                    y_movement = min_height*(movement_proportion/100)
 
-                            p2.x2y2 = line_two_top
-                            p2.x3y3 = line_two_bottom
+                    if rhombus_pattern == "right":
 
-                            p2.refresh_coords()
+                        line_one_top = (p2.x2y2[0],
+                                        p2.x2y2[1] + y_movement)
 
-                            p3.x1y1 = line_two_top
-                            p3.x4y4 = line_two_bottom
+                        line_one_bottom = (p2.x1y1[0],
+                                            p2.x1y1[1] - y_movement)
 
-                            p3.refresh_coords()
+                        p2.x2y2 = line_one_top
+                        p2.x1y1 = line_one_bottom
 
-                        else:
+                        p1.x3y3 = line_one_top
+                        p1.x4y4 = line_one_bottom
 
-                            line_one_top = (p1.x2y2[0] + x_movement,
-                                            p1.x2y2[1])
+                        p1.refresh_coords()
 
-                            line_one_bottom = (p1.x3y3[0] - x_movement,
-                                               p1.x3y3[1])
+                        line_two_top = (p2.x3y3[0],
+                                        p2.x3y3[1] + y_movement)
 
-                            p1.x2y2 = line_one_top
-                            p1.x3y3 = line_one_bottom
+                        line_two_bottom = (p2.x4y4[0],
+                                            p2.x4y4[1] - y_movement)
 
-                            p1.refresh_coords()
+                        p2.x3y3 = line_two_top
+                        p2.x4y4 = line_two_bottom
 
-                            p2.x1y1 = line_one_top
-                            p2.x4y4 = line_one_bottom
+                        p2.refresh_coords()
 
-                            line_two_top = (p2.x2y2[0] + x_movement,
-                                            p2.x2y2[1])
+                        p3.x1y1 = line_two_bottom
+                        p3.x2y2 = line_two_top
 
-                            line_two_bottom = (p2.x3y3[0] - x_movement,
-                                               p2.x3y3[1])
-
-                            p2.x2y2 = line_two_top
-                            p2.x3y3 = line_two_bottom
-
-                            p2.refresh_coords()
-
-                            p3.x1y1 = line_two_top
-                            p3.x4y4 = line_two_bottom
-
-                            p3.refresh_coords()
+                        p3.refresh_coords()
                     else:
-                        y_movement = min_height*(movement_proportion/100)
 
-                        if rhombus_pattern == "right":
+                        line_one_top = (p2.x2y2[0],
+                                        p2.x2y2[1] - y_movement)
 
-                            line_one_top = (p2.x2y2[0],
-                                            p2.x2y2[1] + y_movement)
+                        line_one_bottom = (p2.x1y1[0],
+                                            p2.x1y1[1] + y_movement)
 
-                            line_one_bottom = (p2.x1y1[0],
-                                               p2.x1y1[1] - y_movement)
+                        p2.x2y2 = line_one_top
+                        p2.x1y1 = line_one_bottom
 
-                            p2.x2y2 = line_one_top
-                            p2.x1y1 = line_one_bottom
+                        p1.x3y3 = line_one_top
+                        p1.x4y4 = line_one_bottom
 
-                            p1.x3y3 = line_one_top
-                            p1.x4y4 = line_one_bottom
+                        p1.refresh_coords()
 
-                            p1.refresh_coords()
+                        line_two_top = (p2.x3y3[0],
+                                        p2.x3y3[1] - y_movement)
 
-                            line_two_top = (p2.x3y3[0],
-                                            p2.x3y3[1] + y_movement)
+                        line_two_bottom = (p2.x4y4[0],
+                                            p2.x4y4[1] + y_movement)
 
-                            line_two_bottom = (p2.x4y4[0],
-                                               p2.x4y4[1] - y_movement)
+                        p2.x3y3 = line_two_top
+                        p2.x4y4 = line_two_bottom
 
-                            p2.x3y3 = line_two_top
-                            p2.x4y4 = line_two_bottom
+                        p2.refresh_coords()
 
-                            p2.refresh_coords()
+                        p3.x1y1 = line_two_bottom
+                        p3.x2y2 = line_two_top
 
-                            p3.x1y1 = line_two_bottom
-                            p3.x2y2 = line_two_top
-
-                            p3.refresh_coords()
-                        else:
-
-                            line_one_top = (p2.x2y2[0],
-                                            p2.x2y2[1] - y_movement)
-
-                            line_one_bottom = (p2.x1y1[0],
-                                               p2.x1y1[1] + y_movement)
-
-                            p2.x2y2 = line_one_top
-                            p2.x1y1 = line_one_bottom
-
-                            p1.x3y3 = line_one_top
-                            p1.x4y4 = line_one_bottom
-
-                            p1.refresh_coords()
-
-                            line_two_top = (p2.x3y3[0],
-                                            p2.x3y3[1] - y_movement)
-
-                            line_two_bottom = (p2.x4y4[0],
-                                               p2.x4y4[1] + y_movement)
-
-                            p2.x3y3 = line_two_top
-                            p2.x4y4 = line_two_bottom
-
-                            p2.refresh_coords()
-
-                            p3.x1y1 = line_two_bottom
-                            p3.x2y2 = line_two_top
-
-                            p3.refresh_coords()
+                        p3.refresh_coords()
 
     return page
 
 
-def box_transform_page(page, direction_list=[]):
+def box_transform_page(page: Page, direction_list=[]):
     """
     This function takes all the first child panels of a page
     and moves them to form a zigzag or a rhombus pattern
@@ -1278,7 +1297,17 @@ def box_transform_page(page, direction_list=[]):
     return page
 
 
-def add_transforms(page):
+def circular_transform_panels(page: Page):
+    for panel in page.children:
+        if panel.non_rect or panel.sliced:
+            continue
+
+        panel.circular = np.random.random() < cfg.circular_panel_probability
+
+    return page
+
+
+def add_transforms(page: Page):
     """Adds panel boundary transformations
     to the page
 
@@ -1293,23 +1322,29 @@ def add_transforms(page):
     # Transform types
 
     # Allow choosing multiple
-    transform_choice = ["slice", "box"]
+    transform_choice = ["slice", "box", "circular"]
 
     # Slicing panels into multiple panels
     # Works best with large panels
-    if "slice" in transform_choice:
+    if "slice" in transform_choice and np.random.random() < cfg.slice_transform_chance:
+        transform_choice.pop(2)
         page = single_slice_panels(page)
 
         # Makes v cuts happen more often 1/4 chance
         if np.random.random() < cfg.double_slice_chance:
             page = single_slice_panels(page)
 
-    if "box" in transform_choice:
+    if "box" in transform_choice and np.random.random() < cfg.box_transform_chance:
+        if len(transform_choice) > 2:
+            transform_choice.pop(2)
 
         if np.random.random() < cfg.box_transform_panel_chance:
             page = box_transform_panels(page)
 
         page = box_transform_page(page)
+
+    if "circular" in transform_choice:
+        page = circular_transform_panels(page)
 
     return page
 
@@ -1366,7 +1401,6 @@ def shrink_panels(page):
             panel.x4y4 = changed_coords[3]
         else:
             # Assign them as is if there are no solutions
-            panel.no_render = True
             pass
 
     return page
@@ -1532,7 +1566,7 @@ def create_single_panel_metadata(panel: Panel,
         overlaps = False
         panel_object.place_randomly(panel)
 
-        if np.random.random() < 0.5:
+        if np.random.random() < cfg.panel_object_bubble_speech_freq:
             speech_bubble = speech_bubble_factory.create_with_orientation(
                 panel_object)
             speech_bubble.place_randomly(
@@ -2333,12 +2367,11 @@ def create_page_metadata(backgrounds_dir,
         list(cfg.num_pages_ratios.keys()),
         p=list(cfg.num_pages_ratios.values())
     )
-    number_of_panels = 1
 
     page = get_base_panels(number_of_panels, page_type)
 
-    # if np.random.random() < cfg.panel_transform_chance:
-    #     page = add_transforms(page)
+    if np.random.random() < cfg.panel_transform_chance:
+        page = add_transforms(page)
 
     page = shrink_panels(page)
     page = populate_panels(page,

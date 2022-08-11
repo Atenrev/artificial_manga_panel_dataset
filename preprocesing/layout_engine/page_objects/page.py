@@ -186,12 +186,11 @@ class Page(Panel):
         A function to create the coco annotations of this page
         """
         leaf_children = []
-        if self.num_panels > 1:
-            # Get all the panels to be rendered
-            if len(self.leaf_children) < 1:
-                get_leaf_panels(self, leaf_children)
-            else:
-                leaf_children = self.leaf_children
+        # Get all the panels to be rendered
+        if len(self.leaf_children) < 1:
+            get_leaf_panels(self, leaf_children)
+        else:
+            leaf_children = self.leaf_children
 
         image = {
             "id": self.name,
@@ -217,13 +216,16 @@ class Page(Panel):
             rect = panel.get_polygon()
 
             # Fill panel class
-            draw_rect.polygon(rect, fill="white")
+            if panel.circular:
+                draw_rect.ellipse((*panel.x3y3, *panel.x1y1), fill=255)
+            else:
+                draw_rect.polygon(rect, fill=255)
 
             for po in panel.panel_objects:
                 panel_object_image, panel_object_mask, location = po.render()
-                green_block = Image.new(
+                instance_segmentation = Image.new(
                     '1', (panel_object_image.width, panel_object_image.height), "white")
-                page_mask.paste(green_block, location, panel_object_mask)
+                page_mask.paste(instance_segmentation, location, panel_object_mask)
 
             for sb in panel.speech_bubbles:
                 bubble, mask, location = sb.render()
@@ -240,9 +242,9 @@ class Page(Panel):
                 # Uses a mask so that the "L" type bubble is cropped
                 bubble_mask = bubble_mask.crop(crop_dims)
 
-                green_block = Image.new(
+                instance_segmentation = Image.new(
                     '1', (bubble.width, bubble.height), "white")
-                page_mask.paste(green_block, location, bubble_mask)
+                page_mask.paste(instance_segmentation, location, bubble_mask)
 
             np_mask = np.array(page_mask).astype(np.uint8)
             x, y, w, h = cv2.boundingRect(np_mask)

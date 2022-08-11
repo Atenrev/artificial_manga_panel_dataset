@@ -3,7 +3,7 @@ import numpy as np
 import skimage
 
 from PIL import Image, ImageDraw
-
+from scipy import ndimage
 from preprocesing.layout_engine.page_objects.panel_object import PanelObject
 from ... import config_file as cfg
 from .speech_bubble import SpeechBubble
@@ -49,7 +49,8 @@ class Panel(object):
                  parent,
                  orientation,
                  children=[],
-                 non_rect=False):
+                 non_rect=False,
+                 circular=None):
         """
         Constructor methods
         """
@@ -73,6 +74,11 @@ class Panel(object):
 
         self.coords = coords
         self.non_rect = non_rect
+
+        if circular is not None:
+            self.circular = circular
+        else:
+            self.circular = False
 
         self.refresh_size()
 
@@ -122,8 +128,10 @@ class Panel(object):
             )
 
     def refresh_size(self):
-        xmin = np.inf; xmax = 0
-        ymin = np.inf; ymax = 0
+        xmin = np.inf
+        xmax = 0
+        ymin = np.inf
+        ymax = 0
 
         for coord in self.coords:
             x, y = coord
@@ -132,7 +140,7 @@ class Panel(object):
                 xmin = x
             elif x > xmax:
                 xmax = x
-            
+
             if y < ymin:
                 ymin = y
             elif y > ymax:
@@ -161,6 +169,14 @@ class Panel(object):
     def get_random_coords(self):
         r, c = zip(*self.coords)
         x, y = skimage.draw.polygon(r, c)
+        img = np.zeros((cfg.page_width, cfg.page_height), np.uint8)
+        img[x, y] = 1
+        x_structure = (max(int(self.width//5), 2), 1)
+        y_structure = (1, max(int(self.height//5), 2))
+        img = ndimage.binary_erosion(
+            ndimage.binary_erosion(img, structure=np.ones(x_structure)),
+            structure=np.ones(y_structure))
+        x, y = np.where(img == 1)
         random_index = np.random.choice(list(range(len(x))))
         random_point = (x[random_index], y[random_index])
         return int(random_point[0]), int(random_point[1])
@@ -238,13 +254,15 @@ class Panel(object):
             children_rec = []
 
         speech_bubbles = [bubble.dump_data() for bubble in self.speech_bubbles]
-        panel_objects = [panel_object.dump_data() for panel_object in self.panel_objects]
+        panel_objects = [panel_object.dump_data()
+                         for panel_object in self.panel_objects]
         data = dict(
             name=self.name,
             coordinates=self.coords,
             orientation=self.orientation,
             children=children_rec,
             non_rect=self.non_rect,
+            circular=self.circular,
             sliced=self.sliced,
             no_render=self.no_render,
             image=self.image,
@@ -268,6 +286,7 @@ class Panel(object):
         self.sliced = data['sliced']
         self.no_render = data['no_render']
         self.image = data['image']
+        self.circular = data['circular']
 
         if len(data['speech_bubbles']) > 0:
             for speech_bubble_data in data['speech_bubbles']:
@@ -288,7 +307,8 @@ class Panel(object):
                     name=child['name'],
                     parent=self,
                     orientation=child['orientation'],
-                    non_rect=child['non_rect']
+                    non_rect=child['non_rect'],
+                    circular=child['circular']
                 )
 
                 panel.load_data(child)
@@ -303,7 +323,7 @@ class Panel(object):
         # Open the illustration to put within panel
         if self.image is not None:
             img = Image.open(self.image).convert("RGB")
-                # Clean it up by cropping the black areas
+            # Clean it up by cropping the black areas
             # img_array = np.asarray(img)
             # crop_array = crop_image_only_outside(img_array)
             # img = Image.fromarray(crop_array)
@@ -330,16 +350,25 @@ class Panel(object):
         # On the mask draw and therefore cut out the panel's
         # area so that the illustration can be fit into
         # the page itself
-        draw_mask.polygon(rect, fill=255)
+        if self.circular:
+            draw_mask.ellipse((*self.x3y3, *self.x1y1), fill=255)
+        else:
+            draw_mask.polygon(rect, fill=255)
 
         if np.random.random() < 0.9:
             # Draw outline
             line_rect = rect + (rect[0],)
             draw_img = ImageDraw.Draw(img)
-            draw_img.line(line_rect,
-                            fill=boundary_color,
-                            width=boundary_width,
-                            joint="curve"
-                            )
+            if self.circular:
+                draw_img.ellipse((*self.x3y3, *self.x1y1),
+                                 outline=boundary_color,
+                                 width=boundary_width
+                                 )
+            else:
+                draw_img.line(line_rect,
+                              fill=boundary_color,
+                              width=boundary_width,
+                              joint="curve"
+                              )
 
         return img, mask

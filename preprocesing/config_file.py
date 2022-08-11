@@ -39,7 +39,7 @@ solid_background_probability = 0.75
 
 # Panel transform chance
 
-panel_transform_chance = 0.30
+panel_transform_chance = 0.6
 
 # Panel shrinking
 
@@ -56,24 +56,27 @@ background_add_chance = 0.8 # 0.01
 # **Speech bubbles**
 max_speech_bubbles_per_panel = 2
 bubble_to_panel_area_max_ratio = 0.4
-bubble_to_panel_object_area_max_ratio = 0.8
+bubble_to_panel_object_area_max_ratio = 0.85
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15
 min_font_size = 54
 max_font_size = 72
 
 # **Panel objects**
+panel_object_bubble_speech_freq = 0.65
 object_to_panel_area_max_ratio = 0.4
 max_panel_objects_per_panel = 2
 
 # *Transformations*
 
 # Slicing
+slice_transform_chance = 0.75
 double_slice_chance = 0.25
 slice_minimum_panel_area = 0.2
 center_side_ratio = 0.7
 
 # Box transforms
+box_transform_chance = 0.75
 box_transform_panel_chance = 0.1
 panel_box_trapezoid_ratio = 0.2
 
@@ -81,5 +84,8 @@ panel_box_trapezoid_ratio = 0.2
 # as a ratio of the smallest panel's width or height
 trapezoid_movement_limit = 50
 rhombus_movement_limit = 50
+
+# Circular panels
+circular_panel_probability = 0.25
 
 full_page_movement_proportion_limit = 25

@@ -180,7 +180,7 @@ class SpeechBubble(object):
         :type  panel: Panel
         """
         max_area = parent.get_area() * max_ratio
-        new_area = max_area - np.random.random() * (max_area*0.4) # TODO: Parametrize
+        new_area = max_area - np.random.random() * (max_area*0.3) # TODO: Parametrize
         self.resize_to = new_area
 
         x_choice, y_choice = parent.get_random_coords()
