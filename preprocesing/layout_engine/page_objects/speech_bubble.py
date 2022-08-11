@@ -548,13 +548,20 @@ class SpeechBubble(object):
         bubble = bubble.resize((new_width, new_height))
         mask = mask.resize((new_width, new_height))
 
+        # perform rotation if it was in transforms
+        if "rotate" in self.transforms:
+            rotation = self.transform_metadata['rotation_amount']
+            bubble = bubble.rotate(rotation, expand=True)
+            mask = mask.rotate(rotation, expand=True)
+            new_width, new_height = bubble.size
+
         # Make sure bubble doesn't bleed the page
         xcenter, ycenter = self.location
         # center bubble in coordinates
         x1 = xcenter - new_width // 2
         y1 = ycenter - new_height // 2
-        x2 = x1 + bubble.size[0]
-        y2 = y1 + bubble.size[1]
+        x2 = x1 + new_width
+        y2 = y1 + new_height
 
         if x2 > cfg.page_width:
             x1 = x1 - (x2-cfg.page_width)
@@ -581,12 +588,5 @@ class SpeechBubble(object):
                                               or dx < 0 and self.orientation[1] == 'r'):
             bubble = ImageOps.mirror(bubble)
             mask = ImageOps.mirror(mask)
-
-        # perform rotation if it was in transforms
-        # TODO: Fix issue of bad crops with rotation
-        if "rotate" in self.transforms:
-            rotation = self.transform_metadata['rotation_amount']
-            bubble = bubble.rotate(rotation)
-            mask = mask.rotate(rotation)
 
         return bubble, mask, self.location

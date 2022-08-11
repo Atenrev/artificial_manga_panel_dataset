@@ -376,13 +376,19 @@ class PanelObject(object):
 
         composite_image = composite_image.resize((new_width, new_height))
 
+        # perform rotation if it was in transforms
+        if "rotate" in self.transforms:
+            rotation = self.transform_metadata['rotation_amount']
+            composite_image = composite_image.rotate(rotation, expand=True)
+            new_width, new_height = composite_image.size
+
         # Make sure object doesn't bleed the page
         xcenter, ycenter = self.location
         # center object in coordinates
         x1 = xcenter - new_width // 2
         y1 = ycenter - new_height // 2
-        x2 = x1 + composite_image.size[0]
-        y2 = y1 + composite_image.size[1]
+        x2 = x1 + new_width
+        y2 = y1 + new_height
 
         if x2 > cfg.page_width:
             x1 = x1 - (x2-cfg.page_width)
@@ -396,11 +402,5 @@ class PanelObject(object):
             y1 = 0
 
         self.location = (x1, y1)
-
-        # perform rotation if it was in transforms
-        # TODO: Fix issue of bad crops with rotation
-        if "rotate" in self.transforms:
-            rotation = self.transform_metadata['rotation_amount']
-            composite_image = composite_image.rotate(rotation)
 
         return composite_image, composite_image.copy(), self.location
