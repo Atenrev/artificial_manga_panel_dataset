@@ -167,19 +167,19 @@ class Panel(object):
         self.refresh_size()
 
     def get_random_coords(self):
-        r, c = zip(*self.coords)
-        x, y = skimage.draw.polygon(r, c)
-        img = np.zeros((cfg.page_width, cfg.page_height), np.uint8)
-        img[x, y] = 1
-        x_structure = (max(int(self.width//5), 2), 1)
-        y_structure = (1, max(int(self.height//5), 2))
+        c, r = zip(*self.coords)
+        rr, cc = skimage.draw.polygon(r, c)
+        img = np.zeros((cfg.page_height, cfg.page_width), np.uint8)
+        img[rr, cc] = 1
+        r_structure = (max(int(self.height//5), 1), 1)
+        c_structure = (1, max(int(self.width//5), 1))
         img = ndimage.binary_erosion(
-            ndimage.binary_erosion(img, structure=np.ones(x_structure)),
-            structure=np.ones(y_structure))
-        x, y = np.where(img == 1)
-        random_index = np.random.choice(list(range(len(x))))
-        random_point = (x[random_index], y[random_index])
-        return int(random_point[0]), int(random_point[1])
+            ndimage.binary_erosion(img, structure=np.ones(r_structure)),
+            structure=np.ones(c_structure))
+        rr, cc = np.where(img == 1)
+        random_index = np.random.choice(list(range(len(rr))))
+        random_point = (rr[random_index], cc[random_index])
+        return int(random_point[1]), int(random_point[0])
 
     def get_center(self):
         r, c = zip(*self.coords)

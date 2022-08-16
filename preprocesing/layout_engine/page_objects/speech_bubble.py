@@ -306,10 +306,7 @@ class SpeechBubble(object):
         min_font_size = cfg.max_font_size
         max_font_size = cfg.max_font_size
         current_font_size = self.font_size
-        try:
-            font = ImageFont.truetype(self.font, current_font_size)
-        except:
-            a = 0
+        font = ImageFont.truetype(self.font, current_font_size)
 
         # Center of bubble
         w, h = bubble.size
@@ -442,7 +439,7 @@ class SpeechBubble(object):
             max_x = px_width - 20
             max_y = px_height - 20
 
-            text = self.texts[i]['Japanese']
+            text = self.texts[i]['English']#['Japanese']
             text = text+text+text+text+text
             text_segments = [text]
             size = font.getsize(text)

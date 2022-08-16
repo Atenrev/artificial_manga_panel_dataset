@@ -1,4 +1,5 @@
 import numpy as np
+from PIL import Image
 import cv2
 
 
@@ -19,17 +20,20 @@ def crop_image_only_outside(img, tol=0):
 
     :rtype: PIL.Image
     """
+    img_bw = img.convert("L")
+    img_array = np.asarray(img)
+    img_bw_array = np.asarray(img_bw)
     # img is 2D image data
     # tol  is tolerance
-    mask = img > tol
-    m, n, _ = img.shape
+    mask = img_bw_array > tol
+    m, n = img_bw_array.shape
 
     mask0, mask1 = mask.any(0), mask.any(1)
 
     col_start, col_end = mask0.argmax(), n-mask0[::-1].argmax()
     row_start, row_end = mask1.argmax(), m-mask1[::-1].argmax()
 
-    return img[row_start:row_end, col_start:col_end]
+    return img_array[row_start:row_end, col_start:col_end]
 
 
 def invert_for_next(current):

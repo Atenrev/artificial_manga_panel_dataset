@@ -1,9 +1,14 @@
-from datetime import datetime
 import json
+import os
+import pandas as pd
+import pytest
+from datetime import datetime
 from preprocesing.layout_engine.page_objects.page import Page
 from scraping.download_texts import download_and_extract_jesc
 from scraping.download_fonts import get_font_links
 from scraping.download_images import download_db_illustrations
+from tqdm import tqdm
+from argparse import ArgumentParser
 
 from preprocesing.text_dataset_format_changer import convert_jesc_to_dataframe
 from preprocesing.extract_and_verify_fonts import verify_font_files
@@ -12,11 +17,6 @@ from preprocesing.layout_engine.page_renderer import render_pages
 from preprocesing.layout_engine.page_metadata_creator import (
                                                         create_page_metadata
                                                         )
-from tqdm import tqdm
-import os
-import pandas as pd
-from argparse import ArgumentParser
-import pytest
 
 
 def parse_args():
@@ -93,16 +93,26 @@ def _create_metadata(metadata_folder, n_pages, dry):
                 viable_font_files.append(path)
 
     print("Running creation of metadata")
-    for i in tqdm(range(n)):
-        page = create_page_metadata(backgrounds_dir,
-                                    backgrounds_dir_path,
-                                    foregrounds_dir,
-                                    foregrounds_dir_path,
-                                    viable_font_files,
-                                    text_dataset,
-                                    speech_bubble_tags
-                                    )
-        page.dump_data(metadata_folder, dry=dry)
+    n_errors = 0
+
+    for _ in tqdm(range(n)):
+        try:
+            page = create_page_metadata(backgrounds_dir,
+                                        backgrounds_dir_path,
+                                        foregrounds_dir,
+                                        foregrounds_dir_path,
+                                        viable_font_files,
+                                        text_dataset,
+                                        speech_bubble_tags
+                                        )
+            page.dump_data(metadata_folder, dry=dry)
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt()
+        except:
+            print(f"ERROR: Could not create page. Continuing...")
+            n_errors += 1
+
+    print(f"Could not create {n_errors} pages.")
 
 
 def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
@@ -114,7 +124,7 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
     info = {
         "year": now.year,
         "version": 1.0,
-        "description": "Artificial comics dataset.",
+        "description": "Artificial comics and manga dataset.",
         "contributor": "Atenrev",
         "url": "https://github.com/Atenrev",
         "date_created": now_formatted,
@@ -123,10 +133,6 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
     categories = [
         {
             "id": 0,
-            "name": "background",
-        },
-        {
-            "id": 1,
             "name": "panel",
         }
     ]
@@ -148,10 +154,10 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
 
     coco_dict = {
         "info": info,
-        "images": images,
-        "annotations": annotations,
         "categories": categories,
-        "licenses": []
+        "licenses": [],
+        "images": images,
+        "annotations": annotations
     }
 
     with open(coco_annotations_path, "w") as f:

@@ -322,11 +322,14 @@ class Page(Panel):
                 bg_noise = np.multiply(bg, bg_noise/255.0).astype(np.uint8)
                 crop_array = bg_noise
             else:
-                bg = Image.open(self.background)
-                img_array = np.asarray(bg)
-                crop_array = crop_image_only_outside(img_array)
+                bg = Image.open(self.background).convert("RGB")
+                crop_array = crop_image_only_outside(bg)
 
-            bg = Image.fromarray(crop_array)
+            try:
+                bg = Image.fromarray(crop_array)
+            except:
+                what = 0
+                raise Exception("Fvck")
             bg = bg.resize((W, H))
             page_img.paste(bg, (0, 0))
 

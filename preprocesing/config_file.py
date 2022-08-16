@@ -6,7 +6,7 @@ page_size = (page_width, page_height)
 
 output_format = ".png"
 
-boundary_width = 15
+boundary_width = 12
 boundary_color = "black"
 
 # **Font coverage**
@@ -43,7 +43,7 @@ panel_transform_chance = 0.6
 
 # Panel shrinking
 
-panel_shrink_amount = -25
+panel_shrink_amount = -23
 
 # Panel removal
 
@@ -70,9 +70,9 @@ max_panel_objects_per_panel = 3
 # *Transformations*
 
 # Slicing
-slice_transform_chance = 0.75
+slice_transform_chance = 1.0 #0.75
 double_slice_chance = 0.25
-slice_minimum_panel_area = 0.2
+slice_minimum_panel_area = 0.35
 center_side_ratio = 0.7
 
 # Box transforms
@@ -86,6 +86,6 @@ trapezoid_movement_limit = 50
 rhombus_movement_limit = 50
 
 # Circular panels
-circular_panel_probability = 0.25
+circular_panel_probability = 0.5
 
 full_page_movement_proportion_limit = 25

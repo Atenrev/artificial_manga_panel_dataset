@@ -1372,7 +1372,7 @@ def shrink_panels(page):
         panels = page.leaf_children
 
     panel_shrink_amount = np.random.randint(
-        cfg.panel_shrink_amount-10, cfg.panel_shrink_amount+10)
+        cfg.panel_shrink_amount-20, cfg.panel_shrink_amount+20)
 
     # For each panel
     for panel in panels:
@@ -2370,7 +2370,7 @@ def create_page_metadata(backgrounds_dir,
 
     page = get_base_panels(number_of_panels, page_type)
 
-    if np.random.random() < cfg.panel_transform_chance:
+    if np.random.random() < cfg.panel_transform_chance or True:
         page = add_transforms(page)
 
     page = shrink_panels(page)
