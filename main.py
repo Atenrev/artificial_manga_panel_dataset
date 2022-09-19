@@ -1,11 +1,12 @@
-import json
 import os
 import pandas as pd
 import pytest
-from datetime import datetime
+import concurrent
 from tqdm import tqdm
 from argparse import ArgumentParser
 
+from src import config_file as cfg
+from src.layout_engine.page_annotations_creator import create_coco_annotations
 from src.layout_engine.page_objects.page import Page
 from src.scraping.download_texts import download_and_extract_jesc
 from src.scraping.download_fonts import get_font_links
@@ -15,8 +16,9 @@ from src.extract_and_verify_fonts import verify_font_files
 from src.convert_images import convert_images_to_bw
 from src.layout_engine.page_renderer import render_pages
 from src.layout_engine.page_metadata_creator import (
-                                                        create_page_metadata
-                                                        )
+    create_metadata,
+    create_page_metadata
+)
 
 
 def parse_args():
@@ -53,128 +55,32 @@ def parse_args():
     parser.add_argument("--generate_pages", "-gp", nargs=1, type=int)
     parser.add_argument("--dry", action="store_true", default=False)
     parser.add_argument("--run_tests", action="store_true")
-    parser.add_argument("--output_dir", "-od", type=str, default="acmd_v3/",
-                        help="Output directory")
 
     return parser.parse_args()
 
 
-def _render_pages(metadata_folder, images_folder, dry):
-    if not os.path.isdir(metadata_folder):
+def _create_metadata(n_pages: int, dry: bool):
+    create_metadata(n_pages, dry)
+
+
+def _render_pages(dry):
+    if not os.path.isdir(cfg.METADATA_DIR):
         print("There is no metadata, please generate metadata first.")
     else:
         print("Loading metadata and rendering")
-        render_pages(metadata_folder, images_folder, dry=dry)
+        render_pages(dry=dry)
 
 
-def _create_metadata(metadata_folder, n_pages, dry):
-    # number of pages
-    n = n_pages
-    print("Loading files")
-    backgrounds_dir_path = "datasets/backgrounds/"
-    backgrounds_dir = os.listdir(backgrounds_dir_path)
-    foregrounds_dir_path = "datasets/foregrounds/"
-    foregrounds_dir = os.listdir(foregrounds_dir_path)
-
-    text_dataset = pd.read_parquet("datasets/text_dataset/jesc_dialogues")
-
-    speech_bubbles_path = "datasets/speech_bubbles_dataset/"
-
-    speech_bubble_tags = pd.read_csv(speech_bubbles_path +
-                                        "writing_area_labels.csv")
-    font_files_path = "datasets/font_dataset/"
-    viable_font_files = []
-    with open(font_files_path+"viable_fonts.csv") as viable_fonts:
-
-        for line in viable_fonts.readlines():
-            path, viable = line.split(",")
-            viable = viable.replace("\n", "")
-            if viable == "True":
-                viable_font_files.append(path)
-
-    print("Running creation of metadata")
-    n_errors = 0
-
-    for _ in tqdm(range(n)):
-        try:
-            page = create_page_metadata(backgrounds_dir,
-                                        backgrounds_dir_path,
-                                        foregrounds_dir,
-                                        foregrounds_dir_path,
-                                        viable_font_files,
-                                        text_dataset,
-                                        speech_bubble_tags
-                                        )
-            page.dump_data(metadata_folder, dry=dry)
-        except KeyboardInterrupt:
-            raise KeyboardInterrupt()
-        except Exception:
-            print(f"ERROR: Could not create page. Continuing...")
-            n_errors += 1
-
-    print(f"Could not create {n_errors} pages.")
-
-
-def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
-    print("Loading metadata and creating COCO annotations")
-
-    now = datetime.now()
-    now_formatted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    info = {
-        "year": now.year,
-        "version": 1.0,
-        "description": "Artificial comics and manga dataset.",
-        "contributor": "Atenrev",
-        "url": "https://github.com/Atenrev",
-        "date_created": now_formatted,
-    }
-
-    categories = [
-        {
-            "supercategory": "comic",
-            "id": 1,
-            "name": "panel",
-        },
-        # {
-        #     "id": 2,
-        #     "name": "speech_bubble",
-        # },
-        # {
-        #     "id": 3,
-        #     "name": "character",
-        # }
-    ]
-
-    images = []
-    annotations = []
-
-    for id, filename in tqdm(enumerate(os.listdir(metadata_dir))):
-        if not filename.endswith(".json"):
-            pass
-
-        metadata = os.path.join(metadata_dir, filename)
-        page = Page()
-        page.load_data(metadata)
-        page_image, page_annotations = page.create_coco_annotations(id, len(annotations))
-
-        images.append(page_image)
-        annotations.extend(page_annotations)
-
-    coco_dict = {
-        "info": info,
-        "licenses": [],
-        "images": images,
-        "annotations": annotations,
-        "categories": categories,
-    }
-
-    with open(coco_annotations_path, "w") as f:
-        json.dump(coco_dict, f)
+def _create_annotations(annotations_path):
+    if not os.path.isdir(cfg.METADATA_DIR):
+        print("There is no metadata, please generate metadata first.")
+    else:
+        print("Loading metadata and creating COCO annotations")
+        create_coco_annotations(annotations_path)
 
 
 def main(args):
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
     # Wrangling with the text dataset
     if args.download_jesc:
@@ -218,39 +124,35 @@ def main(args):
     if args.convert_images:
         convert_images_to_bw()
 
-    metadata_folder = os.path.join(args.output_dir, "metadata/")
-    images_folder = os.path.join(args.output_dir, "data/")
-    coco_annotations_path = os.path.join(args.output_dir, "labels.json")
+    coco_annotations_path = os.path.join(cfg.OUTPUT_DIR, "labels.json")
 
-    if not args.dry:
-        if not os.path.isdir(metadata_folder):
-            os.mkdir(metadata_folder)
+    if not os.path.isdir(cfg.METADATA_DIR):
+        os.mkdir(cfg.METADATA_DIR)
 
-        if not os.path.isdir(images_folder):
-            os.mkdir(images_folder)
+    if not os.path.isdir(cfg.IMAGES_DIR):
+        os.mkdir(cfg.IMAGES_DIR)
 
     # Page creation
     if args.create_page_metadata is not None:
-        _create_metadata(metadata_folder, args.create_page_metadata[0], args.dry)
+        _create_metadata(args.create_page_metadata[0], args.dry)
 
     if args.render_pages:
-        _render_pages(metadata_folder, images_folder, args.dry)
+        _render_pages(args.dry)
 
     # Combines the above in case of small size
     if args.generate_pages is not None:
-        _create_metadata(metadata_folder, args.generate_pages[0], args.dry)
-        _render_pages(metadata_folder, images_folder, args.dry)
-        _create_coco_annotations(metadata_folder, images_folder, coco_annotations_path)
+        _create_metadata(args.generate_pages[0], args.dry)
+        _render_pages(args.dry)
+        _create_annotations(coco_annotations_path)
 
     if args.run_tests:
         pytest.main([
-                "tests/unit_tests/",
-                "-s",
-                "-x",
-                ])
+            "tests/unit_tests/",
+            "-s",
+            "-x",
+        ])
 
 
 if __name__ == '__main__':
     args = parse_args()
     main(args)
-

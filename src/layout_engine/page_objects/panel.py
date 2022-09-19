@@ -107,9 +107,9 @@ class Panel(object):
         self.image = None
 
         # A list of speech bubble objects to render around this panel
-        self.speech_bubbles = []
+        self.speech_bubbles : List[SpeechBubble] = []
 
-        self.panel_objects = []
+        self.panel_objects : List[PanelObject] = []
 
     def get_polygon(self):
         """

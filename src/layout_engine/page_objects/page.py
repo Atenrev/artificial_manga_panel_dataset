@@ -180,7 +180,7 @@ class Page(Panel):
                     panel.load_data(child)
                     self.children.append(panel)
 
-    def create_coco_annotations(self, image_id: int, start_annotation_id: int):
+    def create_coco_annotations(self, image_id: int):
         """
         A function to create the coco annotations of this page
         """
@@ -200,7 +200,6 @@ class Page(Panel):
         W = cfg.page_width
         H = cfg.page_height
 
-        next_annotation_id = start_annotation_id
         annotations = []
 
         for panel in leaf_children:
@@ -282,7 +281,6 @@ class Page(Panel):
             # test.save("test.png")
 
             panel_annotation = {
-                "id": next_annotation_id,
                 "image_id": image_id,
                 "category_id": 1,
                 "segmentation": panel_segmentation,
@@ -291,7 +289,6 @@ class Page(Panel):
                 "iscrowd": 0,
             }
             annotations.append(panel_annotation)
-            next_annotation_id += 1
 
         image["width"] = int(self.width)
         image["height"] = int(self.height)

@@ -1,5 +1,6 @@
 import os
 import concurrent
+import json
 from tqdm import tqdm
 
 from .page_objects.page import Page
@@ -17,19 +18,19 @@ def create_single_page(data):
 
     :type paths: tuple
     """
-    metadata = data[0]
-    images_path = data[1]
-    dry = data[2]
+    metadata = os.path.join(cfg.METADATA_DIR, data[0])
+    dry = data[1]
 
     page = Page()
     page.load_data(metadata)
-    filename = images_path+page.name+cfg.output_format
-    if not os.path.isfile(filename) and not dry:
-        img = page.render(show=False)
-        img.save(filename)
+    image_filename = os.path.join(cfg.IMAGES_DIR, page.name+cfg.output_format)
+
+    if not os.path.isfile(image_filename) and not dry:
+        img = page.render()
+        img.save(image_filename)
 
 
-def render_pages(metadata_dir, images_dir, dry=False):
+def render_pages(dry=False):
     """
     Takes metadata json files and renders page images
 
@@ -42,8 +43,8 @@ def render_pages(metadata_dir, images_dir, dry=False):
     :type images_dir: str
     """
 
-    filenames = [(metadata_dir+filename, images_dir, dry)
-                 for filename in os.listdir(metadata_dir)
+    filenames = [(filename, dry, )
+                 for filename in os.listdir(cfg.METADATA_DIR)
                  if filename.endswith(".json")]
 
     with concurrent.futures.ProcessPoolExecutor() as executor:

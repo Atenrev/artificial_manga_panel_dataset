@@ -1,10 +1,15 @@
-# Paths
+import os
 import glob
 
 
 # Paths
 texture_images = glob.glob("datasets/textures/*")
-
+backgrounds_dir_path = "datasets/backgrounds/"
+foregrounds_dir_path = "datasets/foregrounds/"
+OUTPUT_DIR = "acmd3"
+METADATA_DIR = os.path.join(OUTPUT_DIR, "metadata/")
+IMAGES_DIR = os.path.join(OUTPUT_DIR, "data/")
+ANNOTATIONS_DIR = os.path.join(OUTPUT_DIR, "annotations/")
 
 # **Page rendering**
 page_width = 800
@@ -36,9 +41,8 @@ num_pages_ratios = {
     6: 0.1,
     7: 0.1,
     8: 0.1,
-    16: 0.05,
+    16: 0.1,
     32: 0.1,
-    128: 0.05
 }
 
 vertical_horizontal_ratios = {
@@ -72,16 +76,18 @@ background_add_chance = 0.5 # 0.01
 max_speech_bubbles_per_panel = 5
 bubble_to_panel_area_max_ratio = 0.4
 bubble_to_panel_object_area_max_ratio = 0.85
+min_bubble_size = 12
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15
 min_font_size = 24
 max_font_size = 72
 
 # **Panel objects**
-overlap_offset = 36
+overlap_offset = 24
 max_panel_objects_per_panel = 5
 panel_object_bubble_speech_freq = 0.65
 object_to_panel_area_max_ratio = 0.4
+min_panel_object_size = 8
 
 # *Transformations*
 

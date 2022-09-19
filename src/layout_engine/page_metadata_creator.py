@@ -1,6 +1,8 @@
 import numpy as np
 import os
-import pandas
+import pandas as pd
+import concurrent
+from tqdm import tqdm
 from PIL import Image
 
 import src.config_file as cfg
@@ -71,12 +73,10 @@ def create_panel_object_metadata(
 # Page creators
 def create_single_panel_metadata(panel: Panel,
                                  backgrounds_dir: list,
-                                 backgrounds_dir_path: str,
                                  foregrounds_dir: list,
-                                 foregrounds_dir_path: str,
                                  font_files: list,
-                                 text_dataset: pandas.DataFrame,
-                                 speech_bubble_tags: pandas.DataFrame,
+                                 text_dataset: pd.DataFrame,
+                                 speech_bubble_tags: pd.DataFrame,
                                  minimum_speech_bubbles: int = 0
                                  ):
     """
@@ -130,7 +130,7 @@ def create_single_panel_metadata(panel: Panel,
 
     if np.random.random() < cfg.panel_background_add_chance:
         background_image = backgrounds_dir[background_idx]
-        panel.image = os.path.join(backgrounds_dir_path, background_image)
+        panel.image = os.path.join(cfg.backgrounds_dir_path, background_image)
 
     # Foregrounds
     num_panel_objects = np.random.randint(0,
@@ -140,7 +140,7 @@ def create_single_panel_metadata(panel: Panel,
 
     for _ in range(num_panel_objects):
         panel_object = create_panel_object_metadata(
-            panel, foregrounds_dir, foregrounds_dir_path)
+            panel, foregrounds_dir, cfg.foregrounds_dir_path)
 
         overlaps = False
         panel_object.place_randomly(panel)
@@ -155,7 +155,9 @@ def create_single_panel_metadata(panel: Panel,
         for other_panel_object in panel.panel_objects:
             overlaps = overlaps or panel_object.overlaps(other_panel_object)
 
-        if not overlaps:
+        hr, wr = panel_object.get_resized()
+
+        if not overlaps and hr >= cfg.min_panel_object_size and wr >= cfg.min_panel_object_size:
             panel.panel_objects.append(panel_object)
 
     # Speech bubbles
@@ -178,20 +180,18 @@ def create_single_panel_metadata(panel: Panel,
             overlaps = overlaps or speech_bubble.overlaps(other_panel_object)
 
         # If width or height are greater than panel's, don't add it
-        # hr, wr = speech_bubble.get_resized()
+        hr, wr = speech_bubble.get_resized()
 
-        if not overlaps: #and hr < panel.height and wr < panel.width:
+        if not overlaps and hr >= cfg.min_bubble_size and wr >= cfg.min_bubble_size: #and hr < panel.height and wr < panel.width:
             panel.speech_bubbles.append(speech_bubble)
 
 
 def populate_panels(page: Page,
                     backgrounds_dir: list,
-                    backgrounds_dir_path: str,
                     foregrounds_dir: list,
-                    foregrounds_dir_path: str,
                     font_files: list,
-                    text_dataset: pandas.DataFrame,
-                    speech_bubble_tags: pandas.DataFrame,
+                    text_dataset: pd.DataFrame,
+                    speech_bubble_tags: pd.DataFrame,
                     minimum_speech_bubbles: int = 0
                     ):
     """
@@ -205,11 +205,6 @@ def populate_panels(page: Page,
     :param image_dir: List of images to pick from
 
     :type image_dir: list
-
-    :param image_dir_path: Path of images dir to add to
-    panels
-
-    :type image_dir_path: str
 
     :param font_files: list of font files for speech bubble
     text
@@ -247,9 +242,7 @@ def populate_panels(page: Page,
     for child in page.leaf_children:
         create_single_panel_metadata(child,
                                         backgrounds_dir,
-                                        backgrounds_dir_path,
                                         foregrounds_dir,
-                                        foregrounds_dir_path,
                                         font_files,
                                         text_dataset,
                                         speech_bubble_tags,
@@ -260,9 +253,7 @@ def populate_panels(page: Page,
 
 
 def create_page_metadata(backgrounds_dir,
-                         backgrounds_dir_path,
                          foregrounds_dir,
-                         foregrounds_dir_path,
                          font_files,
                          text_dataset,
                          speech_bubble_tags):
@@ -275,11 +266,6 @@ def create_page_metadata(backgrounds_dir,
     :param image_dir: List of images to pick from
 
     :type image_dir: list
-
-    :param image_dir_path: Path of images dir to add to
-    panels
-
-    :type image_dir_path: str
 
     :param font_files: list of font files for speech bubble
     text
@@ -330,9 +316,7 @@ def create_page_metadata(backgrounds_dir,
     page = shrink_panels(page)
     page = populate_panels(page,
                            backgrounds_dir,
-                           backgrounds_dir_path,
                            foregrounds_dir,
-                           foregrounds_dir_path,
                            font_files,
                            text_dataset,
                            speech_bubble_tags
@@ -341,6 +325,71 @@ def create_page_metadata(backgrounds_dir,
     if np.random.random() < cfg.panel_removal_chance:
         page = remove_panel(page)
 
-    page = add_background(page, backgrounds_dir, backgrounds_dir_path)
+    page = add_background(page, backgrounds_dir, cfg.backgrounds_dir_path)
 
     return page
+
+
+
+def try_create_page_metadata(data):
+    page = None
+    backgrounds_dir= data[0]
+    foregrounds_dir = data[1]
+    viable_font_files = data[2]
+    text_dataset = data[3]
+    speech_bubble_tags = data[4]
+    dry = data[5]
+
+    random.seed(data[6])
+    np.random.seed(data[6])
+
+    try:
+        page = create_page_metadata(backgrounds_dir,
+                                    foregrounds_dir,
+                                    viable_font_files,
+                                    text_dataset,
+                                    speech_bubble_tags
+                                    )
+        page.dump_data(cfg.METADATA_DIR, dry=dry)
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt()
+    except Exception:
+        print(f"ERROR: Could not create page. Continuing...")
+
+    return page
+
+
+def create_metadata(n_pages: int, dry: bool):
+    print("Loading files")
+    backgrounds_dir = os.listdir(cfg.backgrounds_dir_path)
+    foregrounds_dir = os.listdir(cfg.foregrounds_dir_path)
+
+    text_dataset = pd.read_parquet("datasets/text_dataset/jesc_dialogues")
+
+    speech_bubbles_path = "datasets/speech_bubbles_dataset/"
+
+    speech_bubble_tags = pd.read_csv(speech_bubbles_path +
+                                     "writing_area_labels.csv")
+    font_files_path = "datasets/font_dataset/"
+    viable_font_files = []
+    
+    with open(font_files_path+"viable_fonts.csv") as viable_fonts:
+
+        for line in viable_fonts.readlines():
+            path, viable = line.split(",")
+            viable = viable.replace("\n", "")
+            if viable == "True":
+                viable_font_files.append(path)
+
+    print("Running creation of metadata")
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        pages = list(tqdm(executor.map(try_create_page_metadata, [
+            (backgrounds_dir,
+            foregrounds_dir,
+            viable_font_files,
+            text_dataset,
+            speech_bubble_tags,
+            dry, 
+            i) for i in range(n_pages)
+        ]), total=n_pages))        
