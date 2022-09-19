@@ -1,23 +1,23 @@
 import pytest
 import math
-from preprocesing.layout_engine.helpers import (
+from src.layout_engine.helpers import (
                         get_min_area_panels,
                         move_child_to_line,
                         move_children_to_line,
                         invert_for_next
 )
 
-from preprocesing.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_dataset_creator import (
     get_base_panels,
     get_leaf_panels,
     move_children_to_line
 
 )
-from preprocesing.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_dataset_creator import (
     draw_n
 )
 
-from preprocesing.layout_engine.page_object_classes import Page
+from src.layout_engine.page_object_classes import Page
 
 @pytest.mark.parametrize(
     "min_area",

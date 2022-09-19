@@ -3,8 +3,8 @@ import numpy as np
 
 from PIL import Image, ImageOps
 
-from preprocesing.layout_engine.page_objects.speech_bubble import SpeechBubble
-from preprocesing import config_file as cfg
+from src.layout_engine.page_objects.speech_bubble import SpeechBubble
+from src import config_file as cfg
 
 
 class PanelObject(object):
@@ -179,7 +179,7 @@ class PanelObject(object):
         x_inter = max(0, min(self_x2, other_x2) - max(self_x1, other_x1))
         y_inter = max(0, min(self_y2, other_y2) - max(self_y1, other_y1))
 
-        return x_inter > 0 and y_inter > 0
+        return x_inter > cfg.overlap_offset and y_inter > cfg.overlap_offset
 
     def get_resized(self):
         if "stretch_x_factor" in self.transform_metadata:
@@ -256,7 +256,7 @@ class PanelObject(object):
             new_size = (size[0], round(size[1]*(1+factor)))
         else:
             new_size = (round(size[0]*(1+factor)), size[1])
-        # Reassign for resizing later
+
         return new_size
 
     def transform_flip(self, cy):
@@ -316,10 +316,9 @@ class PanelObject(object):
 
     def render(self):
         """
-        A function to render this speech bubble
+        A function to render this Panel object
 
-        :return: A list of states of the speech bubble,
-        the speech bubble itself, it's mask and it's location
+        :return: The panel object itself, its mask and its location
         on the page
         :rtype: tuple
         """
@@ -371,8 +370,8 @@ class PanelObject(object):
 
         # reisize object
         aspect_ratio = composite_w/composite_h
-        new_height = round(np.sqrt(self.resize_to/aspect_ratio))
-        new_width = round(new_height * aspect_ratio)
+        new_height = max(1, round(np.sqrt(self.resize_to/aspect_ratio)))
+        new_width = max(1, round(new_height * aspect_ratio))
 
         composite_image = composite_image.resize((new_width, new_height))
 

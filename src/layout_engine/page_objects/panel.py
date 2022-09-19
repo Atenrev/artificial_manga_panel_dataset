@@ -1,10 +1,12 @@
 from re import X
+from typing import List, Tuple
 import numpy as np
 import skimage
 
 from PIL import Image, ImageDraw
 from scipy import ndimage
-from preprocesing.layout_engine.page_objects.panel_object import PanelObject
+from src.layout_engine.page_objects.panel_object import PanelObject
+from src.layout_engine.helpers import crop_image_only_outside
 from ... import config_file as cfg
 from .speech_bubble import SpeechBubble
 
@@ -42,6 +44,8 @@ class Panel(object):
 
     :type non_rect: bool, optional
     """
+
+    next_panel_id: int = 0
 
     def __init__(self,
                  coords,
@@ -127,7 +131,7 @@ class Panel(object):
                 self.x1y1
             )
 
-    def refresh_size(self):
+    def get_bounding_box(self) -> List[int]:
         xmin = np.inf
         xmax = 0
         ymin = np.inf
@@ -146,6 +150,10 @@ class Panel(object):
             elif y > ymax:
                 ymax = y
 
+        return [int(xmin), int(ymin), int(xmax), int(ymax)]
+
+    def refresh_size(self):
+        xmin, ymin, xmax, ymax = self.get_bounding_box()
         self.width = float(xmax - xmin)
         self.height = float(ymax - ymin)
         self.area = float(self.width*self.height)
@@ -156,7 +164,6 @@ class Panel(object):
         this function allows you to refresh the coords variable with
         the changes
         """
-
         self.coords = [
             self.x1y1,
             self.x2y2,
@@ -166,8 +173,9 @@ class Panel(object):
         ]
         self.refresh_size()
 
-    def get_random_coords(self):
+    def refresh_drawable_area(self):
         c, r = zip(*self.coords)
+        c = [e-1 for e in c]; r = [e-1 for e in r]
         rr, cc = skimage.draw.polygon(r, c)
         img = np.zeros((cfg.page_height, cfg.page_width), np.uint8)
         img[rr, cc] = 1
@@ -176,7 +184,10 @@ class Panel(object):
         img = ndimage.binary_erosion(
             ndimage.binary_erosion(img, structure=np.ones(r_structure)),
             structure=np.ones(c_structure))
-        rr, cc = np.where(img == 1)
+        self.drawable_area = np.where(img == 1)
+
+    def get_random_coords(self):
+        rr, cc = self.drawable_area
         random_index = np.random.choice(list(range(len(rr))))
         random_point = (rr[random_index], cc[random_index])
         return int(random_point[1]), int(random_point[0])
@@ -223,7 +234,7 @@ class Panel(object):
         for panel in panels:
             self.add_child(panel)
 
-    def get_child(self, idx):
+    def get_child(self, idx) -> 'Panel':
         """
         Get a child panel by index
 
@@ -324,24 +335,54 @@ class Panel(object):
         if self.image is not None:
             img = Image.open(self.image).convert("RGB")
             # Clean it up by cropping the black areas
-            # img_array = np.asarray(img)
-            # crop_array = crop_image_only_outside(img_array)
-            # img = Image.fromarray(crop_array)
+            crop_array = crop_image_only_outside(img)
+            img = Image.fromarray(crop_array)
         else:
-            img = Image.new("RGB", cfg.page_size, 255)
+            img = Image.new("RGBA", cfg.page_size, (0,0,0,0))
 
-        # Resize it to the page's size as a simple
-        # way to crop differnt parts of it
+        bounding_box = self.get_bounding_box()
+        composite_img = Image.new("RGBA", cfg.page_size, (0, 0, 0, 0))
 
-        # TODO: Figure out how to do different types of
-        # image crops for smaller panels
-        w_rev_ratio = cfg.page_width/img.size[0]
-        h_rev_ratio = cfg.page_height/img.size[1]
+        image_h = int(self.height)
+        # height_offset = int(self.height // 5)
 
-        img = img.resize(
-            (round(img.size[0]*w_rev_ratio),
-                round(img.size[1]*h_rev_ratio))
-        )
+        # if not self.non_rect:
+        #     gap = max(height_offset-np.random.randint(4, 48), 0)
+        #     draw_img = ImageDraw.Draw(composite_img)
+        #     draw_img.rectangle(
+        #         (bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[1] + gap),
+        #         fill='white', outline=boundary_color)
+        #     image_h -= height_offset
+        #     bounding_box[1] += height_offset
+
+        # reisize panel
+        w, h = img.size
+        aspect_ratio = w/h
+        poly_aspect_ratio = self.width/image_h
+        crop_width = crop_heigth = 0
+
+        if poly_aspect_ratio < aspect_ratio:
+            new_height = image_h
+            new_width = round(new_height * aspect_ratio)
+
+            if new_width > self.width:
+                crop_width = np.random.randint(0, new_width - int(self.width))
+        else:
+            new_width = int(self.width)
+            new_height = round(new_width / aspect_ratio)
+
+            if new_height > image_h:
+                crop_heigth = np.random.randint(0, new_height - image_h)
+
+        img = img.resize((new_width, new_height))
+        img = img.crop((
+            crop_width,
+            crop_heigth,
+            int(self.width) + crop_width,
+            image_h + crop_heigth
+        ))
+
+        composite_img.paste(img, tuple(bounding_box))
 
         # Create a mask for the panel illustration
         mask = Image.new("L", cfg.page_size, 0)
@@ -357,18 +398,40 @@ class Panel(object):
 
         if np.random.random() < 0.9:
             # Draw outline
-            line_rect = rect + (rect[0],)
-            draw_img = ImageDraw.Draw(img)
+            line_rect = list(rect) + [rect[0]]
+            draw_img = ImageDraw.Draw(composite_img)
+
             if self.circular:
                 draw_img.ellipse((*self.x3y3, *self.x1y1),
                                  outline=boundary_color,
                                  width=boundary_width
                                  )
+                draw_mask.ellipse((*self.x3y3, *self.x1y1),
+                                  outline=255,
+                                  width=boundary_width
+                                  )
             else:
+                # if not self.non_rect:
+                #     line_rect = (
+                #         self.x1y1,
+                #         self.x2y2,
+                #         (self.x3y3[0], self.x3y3[1] + height_offset),
+                #         (self.x4y4[0], self.x4y4[1] + height_offset),
+                #         self.x1y1,
+                #         self.x1y1,
+                #     )
+
                 draw_img.line(line_rect,
                               fill=boundary_color,
                               width=boundary_width,
                               joint="curve"
                               )
+                draw_mask.line(line_rect,
+                               fill=255,
+                               width=boundary_width,
+                               joint="curve"
+                               )
 
-        return img, mask
+        final_mask = Image.new("RGBA", cfg.page_size, (0, 0, 0, 0))
+        final_mask.paste(composite_img, mask=mask)
+        return composite_img, final_mask

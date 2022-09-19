@@ -3,7 +3,7 @@ import numpy as np
 import json
 
 from PIL import Image
-from preprocesing.layout_engine.page_objects import SpeechBubble
+from src.layout_engine.page_objects import SpeechBubble
 
 
 class SpeechBubbleFactory:

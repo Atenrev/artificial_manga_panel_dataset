@@ -6,7 +6,7 @@ I love manga, but can't read Japanese. And Google Translate isn't so great with 
 This repository contains the associated files and links to create an artificial manga panel dataset.
 Here's a sample of an image created with this code:
 <br>
-<img src="https://github.com/aasimsani/artificial_manga_panel_dataset/blob/main/docs/misc_files/sample.png" width=425>
+<img src="https://github.com/atenrev/artificial_manga_panel_dataset/blob/main/docs/misc_files/sample.png" width=425>
 
 ## Setup and usage
 If you just want to use the dataset and not change anything you can find it at <put link to kaggle here>

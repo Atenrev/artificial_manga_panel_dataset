@@ -1,13 +1,12 @@
-import numpy as np
-import cv2
+import random
 import numpy as np
 import json
 import uuid
 
-from PIL import Image, ImageDraw
-from preprocesing.layout_engine.helpers import (add_noise, blank_image,
-                      crop_image_only_outside, get_leaf_panels)
-from preprocesing import config_file as cfg
+from PIL import Image, ImageDraw, ImageEnhance
+from src.layout_engine.helpers import (add_noise, blank_image,
+                      crop_image_only_outside, get_leaf_panels, get_segmentation)
+from src import config_file as cfg
 from .panel import Panel
 from .speech_bubble import SpeechBubble
 
@@ -39,7 +38,9 @@ class Page(Panel):
                  page_type="",
                  num_panels=1,
                  children=[],
-                 name=None
+                 name=None,
+                 transform_noise=None,
+                 transform_rotation=None,
                  ):
         """
         Constructor method
@@ -61,6 +62,19 @@ class Page(Panel):
             self.name = str(uuid.uuid1())
         else:
             self.name = name
+
+        if transform_noise is None:
+            self.transform_noise = np.random.randint(2, 25)
+        else:
+            self.transform_noise = transform_noise
+
+        if transform_rotation is None:
+            if np.random.random() < 0.5:
+                self.transform_rotation = np.random.randint(-15, 15)
+            else:
+                self.transform_rotation = 0
+        else:
+            self.transform_rotation = transform_rotation
 
         # Initalize the panel super class
         super().__init__(coords=coords,
@@ -116,14 +130,16 @@ class Page(Panel):
             page_size=self.page_size,
             background=self.background,
             children=children_rec,
-            speech_bubbles=speech_bubbles
+            speech_bubbles=speech_bubbles,
+            transform_noise=self.transform_noise,
+            transform_rotation=self.transform_rotation,
         )
 
         if not dry:
             with open(dataset_path+self.name+".json", "w+") as json_file:
-                json.dump(data, json_file, indent=2)
+                json.dump(data, json_file)
         else:
-            return json.dumps(data, indent=2)
+            return json.dumps(data)
 
     def load_data(self, filename):
         """
@@ -143,29 +159,12 @@ class Page(Panel):
             self.num_panels = int(data['num_panels'])
             self.page_type = data['page_type']
             self.background = data['background']
+            self.transform_noise = data['transform_noise']
+            self.transform_rotation = data['transform_rotation']
 
             if len(data['speech_bubbles']) > 0:
-                for speech_bubble in data['speech_bubbles']:
-                    # Line constraints
-                    text_orientation = speech_bubble['text_orientation']
-                    transform_metadata = speech_bubble['transform_metadata']
-                    bubble = SpeechBubble(
-                        texts=speech_bubble['texts'],
-                        text_indices=speech_bubble['text_indices'],
-                        font=speech_bubble['font'],
-                        speech_bubble=speech_bubble['speech_bubble'],
-                        writing_areas=speech_bubble['writing_areas'],
-                        resize_to=speech_bubble['resize_to'],
-                        location=speech_bubble['location'],
-                        width=speech_bubble['width'],
-                        height=speech_bubble['height'],
-                        orientation=speech_bubble['orientation'],
-                        parent_center_coords=speech_bubble['parent_center_coords'],
-                        transforms=speech_bubble['transforms'],
-                        transform_metadata=transform_metadata,
-                        text_orientation=text_orientation
-                    )
-
+                for speech_bubble_data in data['speech_bubbles']:
+                    bubble = SpeechBubble.load_data(speech_bubble_data)
                     self.speech_bubbles.append(bubble)
 
             # Recursively load children
@@ -181,7 +180,7 @@ class Page(Panel):
                     panel.load_data(child)
                     self.children.append(panel)
 
-    def create_coco_annotations(self):
+    def create_coco_annotations(self, image_id: int, start_annotation_id: int):
         """
         A function to create the coco annotations of this page
         """
@@ -193,9 +192,7 @@ class Page(Panel):
             leaf_children = self.leaf_children
 
         image = {
-            "id": self.name,
-            "width": self.width,
-            "height": self.height,
+            "id": image_id,
             "file_name": self.name + cfg.output_format,
             "license": None,
         }
@@ -203,6 +200,7 @@ class Page(Panel):
         W = cfg.page_width
         H = cfg.page_height
 
+        next_annotation_id = start_annotation_id
         annotations = []
 
         for panel in leaf_children:
@@ -221,13 +219,25 @@ class Page(Panel):
             else:
                 draw_rect.polygon(rect, fill=255)
 
-            for po in panel.panel_objects:
+            for i, po in enumerate(panel.panel_objects):
                 panel_object_image, panel_object_mask, location = po.render()
                 instance_segmentation = Image.new(
                     '1', (panel_object_image.width, panel_object_image.height), "white")
                 page_mask.paste(instance_segmentation, location, panel_object_mask)
+                # page_po_mask = Image.new(size=(W, H), mode="1", color="black")
+                # page_po_mask.paste(instance_segmentation, location, panel_object_mask)
+                # po_seg, po_bb, po_area = get_segmentation(page_po_mask)
+                # annotations.append({
+                #     "id": f"panel.name_po_{i}",
+                #     "image_id": self.name,
+                #     "category_id": 2,
+                #     "segmentation": po_seg,
+                #     "area": po_area,
+                #     "bbox": po_bb,
+                #     "iscrowd": 0,
+                # })
 
-            for sb in panel.speech_bubbles:
+            for i, sb in enumerate(panel.speech_bubbles):
                 bubble, mask, location = sb.render()
                 # Slightly shift mask so that you get outline for bubbles
                 new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
@@ -245,23 +255,24 @@ class Page(Panel):
                 instance_segmentation = Image.new(
                     '1', (bubble.width, bubble.height), "white")
                 page_mask.paste(instance_segmentation, location, bubble_mask)
+                # page_sb_mask = Image.new(size=(W, H), mode="1", color="black")
+                # page_sb_mask.paste(instance_segmentation, location, bubble_mask)
+                # sb_seg, sb_bb, sb_area = get_segmentation(page_sb_mask)
+                # annotations.append({
+                #     "id": f"panel.name_sb_{i}",
+                #     "image_id": self.name,
+                #     "category_id": 1,
+                #     "segmentation": sb_seg,
+                #     "area": sb_area,
+                #     "bbox": sb_bb,
+                #     "iscrowd": 0,
+                # })
 
-            np_mask = np.array(page_mask).astype(np.uint8)
-            x, y, w, h = cv2.boundingRect(np_mask)
-            contours, _ = cv2.findContours(
-                np_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            if self.transform_rotation is not None and self.transform_rotation != 0:
+                page_mask = page_mask.rotate(self.transform_rotation, expand=True)
+                self.width, self.height = page_mask.size
 
-            segmentation = []
-            area = 0
-
-            for contour in contours:
-                new_area = cv2.contourArea(contour)
-                # contour = contour.squeeze().tolist()
-                contour = contour.flatten().tolist()
-
-                if len(contour) > 4:
-                    segmentation.append(contour)
-                    area += new_area
+            panel_segmentation, panel_bb, panel_area = get_segmentation(page_mask)
 
             # draw_rect.rectangle((x, y, x+w, y+h), outline="white")
             # page_mask.save("test_page.png")
@@ -270,17 +281,20 @@ class Page(Panel):
             # test_draw.polygon(segmentation, fill=None, outline="white")
             # test.save("test.png")
 
-            annotation = {
-                "id": panel.name,
-                "image_id": self.name,
+            panel_annotation = {
+                "id": next_annotation_id,
+                "image_id": image_id,
                 "category_id": 1,
-                "segmentation": segmentation,
-                "area": area,
-                "bbox": [x, y, w, h],  # [x,y,width,height]
+                "segmentation": panel_segmentation,
+                "area": panel_area,
+                "bbox": panel_bb,
                 "iscrowd": 0,
             }
-            annotations.append(annotation)
+            annotations.append(panel_annotation)
+            next_annotation_id += 1
 
+        image["width"] = int(self.width)
+        image["height"] = int(self.height)
         return image, annotations
 
     def render(self, show=False):
@@ -304,34 +318,12 @@ class Page(Panel):
         H = cfg.page_height
 
         boundary_width = np.random.randint(
-            cfg.boundary_width-10, cfg.boundary_width+10)
-        boundary_color = cfg.boundary_color
+            cfg.boundary_width_min, cfg.boundary_width_max)
+        boundary_color = (np.random.randint(0, 10), np.random.randint(
+                    0, 10), np.random.randint(0, 10))
 
         # Create a new blank image
-        page_img = Image.new(size=(W, H), mode="RGB", color="white")
-
-        # Set background if needed
-        if self.background is not None:
-            if self.background == "#color":
-                # TODO: Parameterize
-                bg = np.zeros([H, W, 3], dtype=np.uint8)
-                bg[:, :, :] = (np.random.randint(235, 255), np.random.randint(
-                    205, 250), np.random.randint(135, 250))
-                bg_noise = add_noise(blank_image(
-                    W, H), sigma=np.random.randint(2, 13))
-                bg_noise = np.multiply(bg, bg_noise/255.0).astype(np.uint8)
-                crop_array = bg_noise
-            else:
-                bg = Image.open(self.background).convert("RGB")
-                crop_array = crop_image_only_outside(bg)
-
-            try:
-                bg = Image.fromarray(crop_array)
-            except:
-                what = 0
-                raise Exception("Fvck")
-            bg = bg.resize((W, H))
-            page_img.paste(bg, (0, 0))
+        page_img = Image.new(size=(W, H), mode="RGBA")
 
         # Render panels
         for panel in leaf_children:
@@ -341,10 +333,7 @@ class Page(Panel):
             panel_img, panel_mask = panel.render(boundary_width, boundary_color)
             page_img.paste(panel_img, (0, 0), panel_mask)
 
-        # If it's a single panel page
-        # if self.num_panels < 2:
-        #     leaf_children.append(self)
-
+        # Render panel objects
         for panel in leaf_children:
             if len(panel.panel_objects) < 1 or panel.no_render:
                 continue
@@ -373,6 +362,48 @@ class Page(Panel):
                 # Uses a mask so that the "L" type bubble is cropped
                 bubble_mask = bubble_mask.crop(crop_dims)
                 page_img.paste(bubble, location, bubble_mask)
+
+        if self.transform_rotation is not None and self.transform_rotation != 0:
+            page_img = page_img.rotate(self.transform_rotation, expand=True)
+            self.width, self.height = page_img.size
+
+        W, H = page_img.size
+
+        # Set background if needed
+        if self.background is not None:
+            if self.background == "#color":
+                # TODO: Parameterize
+                bg = np.zeros([H, W, 3], dtype=np.uint8)
+                if np.random.random() < cfg.background_add_chance:
+                    bg[:, :, :] = (np.random.randint(0, 255), np.random.randint(
+                        0, 255), np.random.randint(0, 255))
+                else:
+                    bg[:, :, :] = (np.random.randint(245, 255), np.random.randint(
+                        245, 255), np.random.randint(245, 255))
+                crop_array = bg
+            else:
+                bg = Image.open(self.background).convert("RGB")
+                crop_array = crop_image_only_outside(bg)
+
+            bg = Image.fromarray(crop_array)
+            bg = bg.resize((W, H))
+            bg.paste(page_img, (0, 0), page_img)
+            page_img = bg
+
+        # Add noise
+        noise = add_noise(blank_image(
+                    W, H), sigma=self.transform_noise)
+        page_img_arr = np.multiply(np.asarray(page_img), noise/255.0)
+        page_img = Image.fromarray(page_img_arr.astype(np.uint8))
+        
+        # Add texture
+        if np.random.rand() < cfg.texture_probability:
+            texture_path = random.choice(cfg.texture_images)
+            texture = Image.open(texture_path).convert("RGBA")
+            # texture = texture.rotate(np.random.randint(-15, 15))
+            texture = texture.resize((W, H))
+            texture_mask = Image.new(mode="L", size=(W, H), color=np.random.randint(125, 245))
+            page_img = Image.composite(page_img, texture, texture_mask)
 
         if show:
             page_img.show()

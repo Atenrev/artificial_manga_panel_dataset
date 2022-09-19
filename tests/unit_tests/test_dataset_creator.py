@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from copy import deepcopy
-from preprocesing.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_dataset_creator import (
     draw_n_shifted,
     draw_n,
     draw_two_shifted,
@@ -10,8 +10,8 @@ from preprocesing.layout_engine.page_dataset_creator import (
     box_transform_page,
     get_base_panels
 )
-from preprocesing.layout_engine.helpers import invert_for_next, get_leaf_panels
-from preprocesing.layout_engine.page_objects import Panel, Page
+from src.layout_engine.helpers import invert_for_next, get_leaf_panels
+from src.layout_engine.page_objects import Panel, Page
 # from preprocesing import config_file as cfg
 
 

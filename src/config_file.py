@@ -1,12 +1,21 @@
+# Paths
+import glob
+
+
+# Paths
+texture_images = glob.glob("datasets/textures/*")
+
+
 # **Page rendering**
-page_width = 1200
-page_height = 1700
+page_width = 800
+page_height = 1200
 
 page_size = (page_width, page_height)
 
 output_format = ".png"
 
-boundary_width = 12
+boundary_width_min = 2
+boundary_width_max = 9
 boundary_color = "black"
 
 # **Font coverage**
@@ -19,14 +28,17 @@ font_character_coverage = 0.80
 
 # TODO: Figure out page type distributions
 num_pages_ratios = {
-    1: 0.125,
-    2: 0.125,
-    3: 0.125,
-    4: 0.125,
-    5: 0.125,
-    6: 0.125,
-    7: 0.125,
-    8: 0.125
+    1: 0.1,
+    2: 0.1,
+    3: 0.1,
+    4: 0.1,
+    5: 0.1,
+    6: 0.1,
+    7: 0.1,
+    8: 0.1,
+    16: 0.05,
+    32: 0.1,
+    128: 0.05
 }
 
 vertical_horizontal_ratios = {
@@ -35,15 +47,18 @@ vertical_horizontal_ratios = {
     "vh": 0.8
 }
 
-solid_background_probability = 0.75
+solid_background_probability = 0.9
+
+panel_background_add_chance = 0.975
 
 # Panel transform chance
 
-panel_transform_chance = 0.6
+panel_transform_chance = 0.75
 
 # Panel shrinking
 
-panel_shrink_amount = -23
+panel_shrink_amount_max = 0
+panel_shrink_amount_min = -36
 
 # Panel removal
 
@@ -51,28 +66,29 @@ panel_removal_chance = 0.01
 panel_removal_max = 2
 
 # Background adding
-background_add_chance = 0.8 # 0.01
+background_add_chance = 0.5 # 0.01
 
 # **Speech bubbles**
-max_speech_bubbles_per_panel = 3
+max_speech_bubbles_per_panel = 5
 bubble_to_panel_area_max_ratio = 0.4
 bubble_to_panel_object_area_max_ratio = 0.85
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15
-min_font_size = 54
+min_font_size = 24
 max_font_size = 72
 
 # **Panel objects**
+overlap_offset = 36
+max_panel_objects_per_panel = 5
 panel_object_bubble_speech_freq = 0.65
 object_to_panel_area_max_ratio = 0.4
-max_panel_objects_per_panel = 3
 
 # *Transformations*
 
 # Slicing
-slice_transform_chance = 1.0 #0.75
+slice_transform_chance = 0.75
 double_slice_chance = 0.25
-slice_minimum_panel_area = 0.35
+slice_minimum_panel_area = 0.3 #0.35
 center_side_ratio = 0.7
 
 # Box transforms
@@ -89,3 +105,6 @@ rhombus_movement_limit = 50
 circular_panel_probability = 0.5
 
 full_page_movement_proportion_limit = 25
+
+# Other
+texture_probability = 0.5

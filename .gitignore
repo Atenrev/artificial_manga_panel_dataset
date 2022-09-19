@@ -139,4 +139,4 @@ raw.tar.gz
 config/
 .DS_Store
 /augraphy*
-/acmd
+/acmd*

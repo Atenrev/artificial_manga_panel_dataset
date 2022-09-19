@@ -3,18 +3,18 @@ import os
 import pandas as pd
 import pytest
 from datetime import datetime
-from preprocesing.layout_engine.page_objects.page import Page
-from scraping.download_texts import download_and_extract_jesc
-from scraping.download_fonts import get_font_links
-from scraping.download_images import download_db_illustrations
 from tqdm import tqdm
 from argparse import ArgumentParser
 
-from preprocesing.text_dataset_format_changer import convert_jesc_to_dataframe
-from preprocesing.extract_and_verify_fonts import verify_font_files
-from preprocesing.convert_images import convert_images_to_bw
-from preprocesing.layout_engine.page_renderer import render_pages
-from preprocesing.layout_engine.page_metadata_creator import (
+from src.layout_engine.page_objects.page import Page
+from src.scraping.download_texts import download_and_extract_jesc
+from src.scraping.download_fonts import get_font_links
+from src.scraping.download_images import download_db_illustrations
+from src.text_dataset_format_changer import convert_jesc_to_dataframe
+from src.extract_and_verify_fonts import verify_font_files
+from src.convert_images import convert_images_to_bw
+from src.layout_engine.page_renderer import render_pages
+from src.layout_engine.page_metadata_creator import (
                                                         create_page_metadata
                                                         )
 
@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument("--generate_pages", "-gp", nargs=1, type=int)
     parser.add_argument("--dry", action="store_true", default=False)
     parser.add_argument("--run_tests", action="store_true")
-    parser.add_argument("--output_dir", "-od", type=str, default="output_ds/",
+    parser.add_argument("--output_dir", "-od", type=str, default="acmd_v3/",
                         help="Output directory")
 
     return parser.parse_args()
@@ -108,7 +108,7 @@ def _create_metadata(metadata_folder, n_pages, dry):
             page.dump_data(metadata_folder, dry=dry)
         except KeyboardInterrupt:
             raise KeyboardInterrupt()
-        except:
+        except Exception:
             print(f"ERROR: Could not create page. Continuing...")
             n_errors += 1
 
@@ -132,32 +132,41 @@ def _create_coco_annotations(metadata_dir, images_dir, coco_annotations_path):
 
     categories = [
         {
-            "id": 0,
+            "supercategory": "comic",
+            "id": 1,
             "name": "panel",
-        }
+        },
+        # {
+        #     "id": 2,
+        #     "name": "speech_bubble",
+        # },
+        # {
+        #     "id": 3,
+        #     "name": "character",
+        # }
     ]
 
     images = []
     annotations = []
 
-    for filename in tqdm(os.listdir(metadata_dir)):
+    for id, filename in tqdm(enumerate(os.listdir(metadata_dir))):
         if not filename.endswith(".json"):
             pass
 
         metadata = os.path.join(metadata_dir, filename)
         page = Page()
         page.load_data(metadata)
-        page_image, page_annotations = page.create_coco_annotations()
+        page_image, page_annotations = page.create_coco_annotations(id, len(annotations))
 
         images.append(page_image)
         annotations.extend(page_annotations)
 
     coco_dict = {
         "info": info,
-        "categories": categories,
         "licenses": [],
         "images": images,
-        "annotations": annotations
+        "annotations": annotations,
+        "categories": categories,
     }
 
     with open(coco_annotations_path, "w") as f:

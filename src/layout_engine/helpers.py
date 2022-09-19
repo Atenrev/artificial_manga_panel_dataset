@@ -1,9 +1,9 @@
+from typing import List, Tuple
 import numpy as np
-from PIL import Image
 import cv2
 
 
-def crop_image_only_outside(img, tol=0):
+def crop_image_only_outside(img, tol: int = 0) -> np.ndarray:
     """
     Crop the outside of the image where
     the pixels are black
@@ -452,3 +452,23 @@ def noise(width, height, ratio=1, sigma=2):
     if ratio > 1:
         result = cv2.resize(result, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
     return result.reshape((width, height, 1))
+
+
+def get_segmentation(img) -> Tuple[List, Tuple, float]:
+    np_mask = np.array(img).astype(np.uint8)
+    bb = cv2.boundingRect(np_mask)
+    contours, _ = cv2.findContours(
+        np_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    segmentation = []
+    area = 0.0
+
+    for contour in contours:
+        new_area = cv2.contourArea(contour)
+        contour = contour.flatten().tolist()
+
+        if len(contour) > 4:
+            segmentation.append(contour)
+            area += new_area
+
+    return segmentation, bb, area

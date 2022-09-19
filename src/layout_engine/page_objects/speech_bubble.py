@@ -112,12 +112,12 @@ class SpeechBubble(object):
 
         if transforms is None:
             possible_transforms = [
-                
+
                 "rotate",
                 "stretch x",
                 "stretch y",
             ]
-            
+
             if self.orientation is np.nan:
                 possible_transforms += [
                     "flip horizontal",
@@ -155,7 +155,7 @@ class SpeechBubble(object):
 
         if text_orientation is None:
             # 1 in 100 chance
-            if np.random.random() < 0.01:
+            if np.random.random() < 1.0:  # 0.01
                 self.text_orientation = "ltr"
             else:
                 self.text_orientation = "ttb"
@@ -180,7 +180,7 @@ class SpeechBubble(object):
         :type  panel: Panel
         """
         max_area = parent.get_area() * max_ratio
-        new_area = max_area - np.random.random() * (max_area*0.3) # TODO: Parametrize
+        new_area = max_area - np.random.random() * (max_area*0.3)  # TODO: Parametrize
         self.resize_to = new_area
 
         x_choice, y_choice = parent.get_random_coords()
@@ -220,7 +220,7 @@ class SpeechBubble(object):
         x_inter = max(0, min(self_x2, other_x2) - max(self_x1, other_x1))
         y_inter = max(0, min(self_y2, other_y2) - max(self_y1, other_y1))
 
-        return x_inter > 0 and y_inter > 0
+        return x_inter > cfg.overlap_offset and y_inter > cfg.overlap_offset
 
     def get_resized(self):
         if "stretch_x_factor" in self.transform_metadata:
@@ -439,7 +439,7 @@ class SpeechBubble(object):
             max_x = px_width - 20
             max_y = px_height - 20
 
-            text = self.texts[i]['English']#['Japanese']
+            text = self.texts[i]['English']  # ['Japanese']
             text = text+text+text+text+text
             text_segments = [text]
             size = font.getsize(text)
@@ -535,13 +535,16 @@ class SpeechBubble(object):
                 write.text((rx, ry),
                            text,
                            font=font,
+                           #    font=ImageFont.truetype(
+                           #        "/usr/share/fonts/truetype/freefont/FreeMono.ttf", current_font_size),
                            fill=fill_type,
-                           direction=self.text_orientation)
+                           direction=self.text_orientation
+                           )
 
         # reisize bubble
         aspect_ratio = w/h
-        new_height = round(np.sqrt(self.resize_to/aspect_ratio))
-        new_width = round(new_height * aspect_ratio)
+        new_height = max(1, round(np.sqrt(self.resize_to/aspect_ratio)))
+        new_width = max(1, round(new_height * aspect_ratio))
         bubble = bubble.resize((new_width, new_height))
         mask = mask.resize((new_width, new_height))
 

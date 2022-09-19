@@ -3,10 +3,10 @@ import json
 import pandas as pd
 import os
 
-from preprocesing.layout_engine.page_objects import (
+from src.layout_engine.page_objects import (
                                 Page
                                 )
-from preprocesing.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_dataset_creator import (
                                 get_base_panels, populate_panels
                                 )
                                 

@@ -7,9 +7,9 @@ name = "artificial-comics"
 dataset_dir = "output_ds"
 
 # The type of the dataset being imported
-dataset_type = fo.types.COCODetectionDataset  # for example
+dataset_type = fo.types.COCODetectionDataset 
 
-# fo.delete_dataset(name)
+fo.delete_dataset(name)
 
 dataset = fo.Dataset.from_dir(
     dataset_dir=dataset_dir,
