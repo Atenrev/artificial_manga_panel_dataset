@@ -2,6 +2,9 @@ import os
 import glob
 
 
+# Concurrent
+CONCURRENT_MAX_WORKERS = 8
+
 # Paths
 texture_images = glob.glob("datasets/textures/*")
 backgrounds_dir_path = "datasets/backgrounds/"
@@ -41,8 +44,7 @@ num_pages_ratios = {
     6: 0.1,
     7: 0.1,
     8: 0.1,
-    16: 0.1,
-    32: 0.1,
+    32: 0.2,
 }
 
 vertical_horizontal_ratios = {

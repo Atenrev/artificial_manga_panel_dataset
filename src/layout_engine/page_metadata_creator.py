@@ -1,7 +1,8 @@
-import numpy as np
 import os
-import pandas as pd
+import time
 import concurrent
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from PIL import Image
 
@@ -164,7 +165,7 @@ def create_single_panel_metadata(panel: Panel,
     num_speech_bubbles = np.random.randint(minimum_speech_bubbles,
                                            cfg.max_speech_bubbles_per_panel + 1)
     if panel.image is None:
-        num_speech_bubbles = min(1, num_speech_bubbles)                                    
+        num_speech_bubbles = min(1, num_speech_bubbles)
 
     # Associated speech bubbles
     for speech_bubble in range(num_speech_bubbles):
@@ -182,7 +183,8 @@ def create_single_panel_metadata(panel: Panel,
         # If width or height are greater than panel's, don't add it
         hr, wr = speech_bubble.get_resized()
 
-        if not overlaps and hr >= cfg.min_bubble_size and wr >= cfg.min_bubble_size: #and hr < panel.height and wr < panel.width:
+        # and hr < panel.height and wr < panel.width:
+        if not overlaps and hr >= cfg.min_bubble_size and wr >= cfg.min_bubble_size:
             panel.speech_bubbles.append(speech_bubble)
 
 
@@ -241,13 +243,13 @@ def populate_panels(page: Page,
 
     for child in page.leaf_children:
         create_single_panel_metadata(child,
-                                        backgrounds_dir,
-                                        foregrounds_dir,
-                                        font_files,
-                                        text_dataset,
-                                        speech_bubble_tags,
-                                        minimum_speech_bubbles
-                                        )
+                                     backgrounds_dir,
+                                     foregrounds_dir,
+                                     font_files,
+                                     text_dataset,
+                                     speech_bubble_tags,
+                                     minimum_speech_bubbles
+                                     )
 
     return page
 
@@ -304,9 +306,9 @@ def create_page_metadata(backgrounds_dir,
         page_type = "vh"
     else:
         page_type = np.random.choice(
-        list(cfg.vertical_horizontal_ratios.keys()),
-        p=list(cfg.vertical_horizontal_ratios.values())
-    )
+            list(cfg.vertical_horizontal_ratios.keys()),
+            p=list(cfg.vertical_horizontal_ratios.values())
+        )
 
     page = get_base_panels(number_of_panels, page_type)
 
@@ -330,18 +332,17 @@ def create_page_metadata(backgrounds_dir,
     return page
 
 
-
 def try_create_page_metadata(data):
     page = None
-    backgrounds_dir= data[0]
+    backgrounds_dir = data[0]
     foregrounds_dir = data[1]
     viable_font_files = data[2]
     text_dataset = data[3]
     speech_bubble_tags = data[4]
-    dry = data[5]
 
-    random.seed(data[6])
-    np.random.seed(data[6])
+    seed = (os.getpid() * int(time.time())) % 42424242
+    random.seed(seed)
+    np.random.seed(seed)
 
     try:
         page = create_page_metadata(backgrounds_dir,
@@ -350,7 +351,6 @@ def try_create_page_metadata(data):
                                     text_dataset,
                                     speech_bubble_tags
                                     )
-        page.dump_data(cfg.METADATA_DIR, dry=dry)
     except KeyboardInterrupt:
         raise KeyboardInterrupt()
     except Exception:
@@ -372,7 +372,7 @@ def create_metadata(n_pages: int, dry: bool):
                                      "writing_area_labels.csv")
     font_files_path = "datasets/font_dataset/"
     viable_font_files = []
-    
+
     with open(font_files_path+"viable_fonts.csv") as viable_fonts:
 
         for line in viable_fonts.readlines():
@@ -383,13 +383,30 @@ def create_metadata(n_pages: int, dry: bool):
 
     print("Running creation of metadata")
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        pages = list(tqdm(executor.map(try_create_page_metadata, [
-            (backgrounds_dir,
-            foregrounds_dir,
-            viable_font_files,
-            text_dataset,
-            speech_bubble_tags,
-            dry, 
-            i) for i in range(n_pages)
-        ]), total=n_pages))        
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.CONCURRENT_MAX_WORKERS) as executor:
+        jobs = {}
+
+        pages_iter = range(n_pages)
+        pages_left = n_pages
+
+        with tqdm(total=n_pages) as pbar:
+            while pages_left:
+                for i in pages_iter:
+                    job = executor.submit(try_create_page_metadata, (backgrounds_dir,
+                                                                     foregrounds_dir,
+                                                                     viable_font_files,
+                                                                     text_dataset,
+                                                                     speech_bubble_tags
+                                                                     ))
+                    jobs[job] = i
+
+                    if len(jobs) > cfg.CONCURRENT_MAX_WORKERS:
+                        break
+
+                for job in concurrent.futures.as_completed(jobs):
+                    pages_left -= 1
+                    pbar.update(1)
+                    page = job.result()
+                    del jobs[job]
+                    page.dump_data(cfg.METADATA_DIR, dry=dry)
+                    break
