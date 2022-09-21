@@ -52,6 +52,7 @@ def parse_args():
 
     parser.add_argument("--create_page_metadata", "-pm", nargs=1, type=int)
     parser.add_argument("--render_pages", "-rp", action="store_true")
+    parser.add_argument("--create_annotations", "-ca", action="store_true")
     parser.add_argument("--generate_pages", "-gp", nargs=1, type=int)
     parser.add_argument("--dry", action="store_true", default=False)
     parser.add_argument("--run_tests", action="store_true")
@@ -126,21 +127,26 @@ def main(args):
 
     coco_annotations_path = os.path.join(cfg.OUTPUT_DIR, "labels.json")
 
-    if not os.path.isdir(cfg.METADATA_DIR):
-        os.mkdir(cfg.METADATA_DIR)
-
     if not os.path.isdir(cfg.IMAGES_DIR):
         os.mkdir(cfg.IMAGES_DIR)
 
     # Page creation
     if args.create_page_metadata is not None:
+        if not os.path.isdir(cfg.METADATA_DIR):
+            os.mkdir(cfg.METADATA_DIR)
+
         _create_metadata(args.create_page_metadata[0], args.dry)
 
     if args.render_pages:
         _render_pages(args.dry)
 
+    if args.create_annotations:
+        _create_annotations(coco_annotations_path)
+
     # Combines the above in case of small size
     if args.generate_pages is not None:
+        if not os.path.isdir(cfg.METADATA_DIR):
+            os.mkdir(cfg.METADATA_DIR)
         _create_metadata(args.generate_pages[0], args.dry)
         _render_pages(args.dry)
         _create_annotations(coco_annotations_path)

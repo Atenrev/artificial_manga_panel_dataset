@@ -5,7 +5,7 @@ import skimage
 
 from PIL import Image, ImageDraw
 from scipy import ndimage
-from src.layout_engine.page_objects.panel_object import PanelObject
+from src.layout_engine.page_objects.character import Character
 from src.layout_engine.helpers import crop_image_only_outside
 from ... import config_file as cfg
 from .speech_bubble import SpeechBubble
@@ -109,7 +109,7 @@ class Panel(object):
         # A list of speech bubble objects to render around this panel
         self.speech_bubbles : List[SpeechBubble] = []
 
-        self.panel_objects : List[PanelObject] = []
+        self.characters : List[Character] = []
 
     def get_polygon(self):
         """
@@ -226,7 +226,7 @@ class Panel(object):
         """
         Method to add multiple children at once
 
-        :param panels: A list of Panel objects
+        :param panels: A list of Characters
 
         :type panels: list
         """
@@ -265,8 +265,8 @@ class Panel(object):
             children_rec = []
 
         speech_bubbles = [bubble.dump_data() for bubble in self.speech_bubbles]
-        panel_objects = [panel_object.dump_data()
-                         for panel_object in self.panel_objects]
+        characters = [character.dump_data()
+                         for character in self.characters]
         data = dict(
             name=self.name,
             coordinates=self.coords,
@@ -278,7 +278,7 @@ class Panel(object):
             no_render=self.no_render,
             image=self.image,
             speech_bubbles=speech_bubbles,
-            panel_objects=panel_objects,
+            characters=characters,
         )
 
         return data
@@ -304,10 +304,10 @@ class Panel(object):
                 bubble = SpeechBubble.load_data(speech_bubble_data)
                 self.speech_bubbles.append(bubble)
 
-        if len(data['panel_objects']) > 0:
-            for panel_object_data in data['panel_objects']:
-                panel_object = PanelObject.load_data(panel_object_data)
-                self.panel_objects.append(panel_object)
+        if len(data['characters']) > 0:
+            for character_data in data['characters']:
+                character = Character.load_data(character_data)
+                self.characters.append(character)
 
         # Recursively load children
         children = []

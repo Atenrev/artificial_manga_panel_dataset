@@ -7,8 +7,9 @@ from tqdm import tqdm
 from PIL import Image
 
 import src.config_file as cfg
+from src.layout_engine.page_objects.character_factory import CharacterFactory
 from src.layout_engine.page_objects.speech_bubble_factory import SpeechBubbleFactory
-from src.layout_engine.page_objects import Panel, Page, PanelObject
+from src.layout_engine.page_objects import Panel, Page, Character
 from src.layout_engine.page_metadata_transforms import *
 from src.layout_engine.page_metadata_draw import *
 
@@ -43,32 +44,6 @@ def add_background(page, image_dir, image_dir_path):
         page.background = image_dir_path + image_dir[idx]
 
     return page
-
-
-def create_panel_object_metadata(
-    panel: Panel,
-    foregrounds_dir: list,
-    foregrounds_dir_path: str
-) -> PanelObject:
-    foregrounds_len = len(foregrounds_dir)
-    foreground_file_idx = np.random.randint(
-        0,
-        foregrounds_len
-    )
-    panel_object_file = os.path.join(
-        foregrounds_dir_path, foregrounds_dir[foreground_file_idx])
-
-    panel_object_img = Image.open(panel_object_file)
-    width, height = panel_object_img.size
-
-    panel_object = PanelObject(
-        panel_object_file,
-        width,
-        height,
-        panel_center_coords=panel.get_center(),
-    )
-
-    return panel_object
 
 
 # Page creators
@@ -124,6 +99,8 @@ def create_single_panel_metadata(panel: Panel,
     """
     speech_bubble_factory = SpeechBubbleFactory(
         speech_bubble_tags, font_files, text_dataset)
+    character_factory = CharacterFactory(
+        foregrounds_dir, cfg.foregrounds_dir_path)
 
     # Image to be used inside panel
     image_dir_len = len(backgrounds_dir)
@@ -134,32 +111,31 @@ def create_single_panel_metadata(panel: Panel,
         panel.image = os.path.join(cfg.backgrounds_dir_path, background_image)
 
     # Foregrounds
-    num_panel_objects = np.random.randint(0,
-                                          cfg.max_panel_objects_per_panel + 1)
+    num_characters = np.random.randint(0,
+                                       cfg.max_characters_per_panel + 1)
     if panel.image is None:
-        num_panel_objects = min(1, num_panel_objects)
+        num_characters = min(1, num_characters)
 
-    for _ in range(num_panel_objects):
-        panel_object = create_panel_object_metadata(
-            panel, foregrounds_dir, cfg.foregrounds_dir_path)
+    for _ in range(num_characters):
+        character = character_factory.create(panel)
+        character.place_randomly(panel)
+
+        if np.random.random() < cfg.character_bubble_speech_freq:
+            speech_bubble = speech_bubble_factory.create_with_orientation(
+                character)
+            speech_bubble.place_randomly(
+                character, cfg.bubble_to_character_area_max_ratio)
+            character.add_speech_bubble(speech_bubble)
 
         overlaps = False
-        panel_object.place_randomly(panel)
+        
+        for other_character in panel.characters:
+            overlaps = overlaps or character.overlaps(other_character)
 
-        if np.random.random() < cfg.panel_object_bubble_speech_freq:
-            speech_bubble = speech_bubble_factory.create_with_orientation(
-                panel_object)
-            speech_bubble.place_randomly(
-                panel_object, cfg.bubble_to_panel_object_area_max_ratio)
-            panel_object.add_speech_bubble(speech_bubble)
+        hr, wr = character.get_resized()
 
-        for other_panel_object in panel.panel_objects:
-            overlaps = overlaps or panel_object.overlaps(other_panel_object)
-
-        hr, wr = panel_object.get_resized()
-
-        if not overlaps and hr >= cfg.min_panel_object_size and wr >= cfg.min_panel_object_size:
-            panel.panel_objects.append(panel_object)
+        if not overlaps and hr >= cfg.min_character_size and wr >= cfg.min_character_size:
+            panel.characters.append(character)
 
     # Speech bubbles
     num_speech_bubbles = np.random.randint(minimum_speech_bubbles,
@@ -177,8 +153,8 @@ def create_single_panel_metadata(panel: Panel,
         for other_speech_bubble in panel.speech_bubbles:
             overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)
 
-        for other_panel_object in panel.panel_objects:
-            overlaps = overlaps or speech_bubble.overlaps(other_panel_object)
+        for other_character in panel.characters:
+            overlaps = overlaps or speech_bubble.overlaps(other_character)
 
         # If width or height are greater than panel's, don't add it
         hr, wr = speech_bubble.get_resized()
@@ -340,7 +316,7 @@ def try_create_page_metadata(data):
     text_dataset = data[3]
     speech_bubble_tags = data[4]
 
-    seed = (os.getpid() * int(time.time())) % 42424242
+    seed = (os.getpid() * int(time.time())) % 4242424242
     random.seed(seed)
     np.random.seed(seed)
 
@@ -408,5 +384,8 @@ def create_metadata(n_pages: int, dry: bool):
                     pbar.update(1)
                     page = job.result()
                     del jobs[job]
-                    page.dump_data(cfg.METADATA_DIR, dry=dry)
+
+                    if page is not None:
+                        page.dump_data(cfg.METADATA_DIR, dry=dry)
+
                     break

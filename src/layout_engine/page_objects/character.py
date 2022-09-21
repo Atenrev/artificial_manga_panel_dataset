@@ -7,9 +7,9 @@ from src.layout_engine.page_objects.speech_bubble import SpeechBubble
 from src import config_file as cfg
 
 
-class PanelObject(object):
+class Character(object):
     """
-    A class to represent the metadata to render a speech bubble
+    A class to represent the metadata to render a character
 
     :param texts: A list of texts from the text corpus to render in this
     bubble
@@ -25,7 +25,7 @@ class PanelObject(object):
 
     :type font: str
 
-    :param speech_bubble: The path to the base speech bubble file
+    :param speech_bubble: The path to the base character file
     used for this bubble
 
     :type speech_bubble: str
@@ -35,21 +35,21 @@ class PanelObject(object):
 
     :type resize_to: float
 
-    :param location: The location of the top left corner of the speech bubble
+    :param location: The location of the top left corner of the character
     on the page
 
     :type location: list
 
-    :param width: Width of the speech bubble
+    :param width: Width of the character
 
     :type width: float
 
-    :param height: Height of the speech bubble
+    :param height: Height of the character
 
     :type height: float
 
     :param transforms: A list of transformations to change
-    the shape of the speech bubble
+    the shape of the character
 
     :type transforms: list, optional
 
@@ -58,7 +58,7 @@ class PanelObject(object):
 
     :type transform_metadata: dict, optional
 
-    :param text_orientation: Whether the text of this speech bubble
+    :param text_orientation: Whether the text of this character
     is written left to right ot top to bottom
 
     :type text_orientation: str, optional
@@ -128,10 +128,10 @@ class PanelObject(object):
 
     def place_randomly(self, panel):
         """
-        A method to place the Panel Object in a random location
+        A method to place the character in a random location
         inside the panel.
 
-        :param panel: The panel in which the Panel Object will
+        :param panel: The panel in which the character will
         be placed
 
         :type  panel: Panel
@@ -151,14 +151,14 @@ class PanelObject(object):
 
     def overlaps(self, other):
         """
-        A method to check if this Object overlaps with
+        A method to check if this Character overlaps with
         another.
 
-        :param other: The other Panel Object
+        :param other: The other Character
 
-        :type  other: Panel Object
+        :type  other: Character
 
-        :return: Whether the Panel Object overlaps.
+        :return: Whether the Character overlaps.
         :rtype: bool
         """
         self_x1, self_y1 = self.location
@@ -267,7 +267,7 @@ class PanelObject(object):
 
     def dump_data(self):
         """
-        A method to take all the Panel Object's relevant data
+        A method to take all the character's relevant data
         and create a dictionary out of it so it can be
         exported to JSON via the Page(Panel) class's
         dump_data method
@@ -295,7 +295,7 @@ class PanelObject(object):
 
     @classmethod
     def load_data(cls, data: dict):
-        panel_object = cls(
+        character = cls(
             object_image=data['object_image'],
             resize_to=data['resize_to'],
             location=data['location'],
@@ -310,32 +310,19 @@ class PanelObject(object):
         if len(data['speech_bubbles']) > 0:
             for speech_bubble_data in data['speech_bubbles']:
                 bubble = SpeechBubble.load_data(speech_bubble_data)
-                panel_object.speech_bubbles.append(bubble)        
+                character.speech_bubbles.append(bubble)        
 
-        return panel_object
+        return character
 
-    def render(self):
-        """
-        A function to render this Panel object
-
-        :return: The panel object itself, its mask and its location
-        on the page
-        :rtype: tuple
-        """
-
-        composite_image = Image.new("RGBA", (self.width, self.height))
-        object_image = Image.open(self.object_image).convert("RGBA")
-
+    def apply_prerendering_transforms(self, composite_image, object_image):
         # Center of object
         w, h = object_image.size
         composite_w, composite_h = composite_image.size
         stretch_x_factor = stretch_y_factor = 1.0
         cx, cy = w/2, h/2
-
-        # Pre-rendering transforms
+        new_size = new_composite_size = None
+        
         for transform in self.transforms:
-            new_size = new_composite_size = None
-
             if transform == "stretch x":
                 stretch_factor = self.transform_metadata['stretch_x_factor']
                 new_size = self.transform_stretch((w, h), stretch_factor, False)
@@ -357,10 +344,28 @@ class PanelObject(object):
                 self.transform_mirror(cx)
 
             if new_size is not None and new_composite_size is not None:
-                object_image = object_image.resize(new_size)
-                composite_image = composite_image.resize(new_composite_size)
                 w, h = new_size
                 composite_w, composite_h = new_composite_size
+
+        if new_size is not None and new_composite_size is not None:
+            object_image = object_image.resize(new_size)
+            composite_image = composite_image.resize(new_composite_size)
+
+        return composite_image, object_image, (composite_w, composite_h)
+
+    def render(self):
+        """
+        A function to render this character
+
+        :return: The character itself, its mask and its location
+        on the page
+        :rtype: tuple
+        """
+
+        composite_image = Image.new("RGBA", (self.width, self.height))
+        object_image = Image.open(self.object_image).convert("RGBA")
+
+        composite_image, object_image, composite_size = self.apply_prerendering_transforms(composite_image, object_image)
 
         composite_image.paste(object_image, self.composite_location, object_image)
 
@@ -369,6 +374,7 @@ class PanelObject(object):
             composite_image.paste(speech_bubble_image, location, speech_bubble_mask)
 
         # reisize object
+        composite_w, composite_h = composite_size
         aspect_ratio = composite_w/composite_h
         new_height = max(1, round(np.sqrt(self.resize_to/aspect_ratio)))
         new_width = max(1, round(new_height * aspect_ratio))

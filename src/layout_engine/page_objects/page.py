@@ -218,13 +218,13 @@ class Page(Panel):
             else:
                 draw_rect.polygon(rect, fill=255)
 
-            for i, po in enumerate(panel.panel_objects):
-                panel_object_image, panel_object_mask, location = po.render()
+            for i, po in enumerate(panel.characters):
+                character_image, character_mask, location = po.render()
                 instance_segmentation = Image.new(
-                    '1', (panel_object_image.width, panel_object_image.height), "white")
-                page_mask.paste(instance_segmentation, location, panel_object_mask)
+                    '1', (character_image.width, character_image.height), "white")
+                page_mask.paste(instance_segmentation, location, character_mask)
                 # page_po_mask = Image.new(size=(W, H), mode="1", color="black")
-                # page_po_mask.paste(instance_segmentation, location, panel_object_mask)
+                # page_po_mask.paste(instance_segmentation, location, character_mask)
                 # po_seg, po_bb, po_area = get_segmentation(page_po_mask)
                 # annotations.append({
                 #     "id": f"panel.name_po_{i}",
@@ -288,7 +288,9 @@ class Page(Panel):
                 "bbox": panel_bb,
                 "iscrowd": 0,
             }
-            annotations.append(panel_annotation)
+
+            if panel_area > 0.0:
+                annotations.append(panel_annotation)
 
         image["width"] = int(self.width)
         image["height"] = int(self.height)
@@ -330,12 +332,12 @@ class Page(Panel):
             panel_img, panel_mask = panel.render(boundary_width, boundary_color)
             page_img.paste(panel_img, (0, 0), panel_mask)
 
-        # Render panel objects
+        # Render characters
         for panel in leaf_children:
-            if len(panel.panel_objects) < 1 or panel.no_render:
+            if len(panel.characters) < 1 or panel.no_render:
                 continue
-            # For each panel_object
-            for po in panel.panel_objects:
+            # For each character
+            for po in panel.characters:
                 image, mask, location = po.render()
                 page_img.paste(image, location, mask)
 

@@ -9,7 +9,7 @@ CONCURRENT_MAX_WORKERS = 8
 texture_images = glob.glob("datasets/textures/*")
 backgrounds_dir_path = "datasets/backgrounds/"
 foregrounds_dir_path = "datasets/foregrounds/"
-OUTPUT_DIR = "acmd3"
+OUTPUT_DIR = "acmd_v3"
 METADATA_DIR = os.path.join(OUTPUT_DIR, "metadata/")
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "data/")
 ANNOTATIONS_DIR = os.path.join(OUTPUT_DIR, "annotations/")
@@ -77,19 +77,19 @@ background_add_chance = 0.5 # 0.01
 # **Speech bubbles**
 max_speech_bubbles_per_panel = 5
 bubble_to_panel_area_max_ratio = 0.4
-bubble_to_panel_object_area_max_ratio = 0.85
+bubble_to_character_area_max_ratio = 0.85
 min_bubble_size = 12
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15
 min_font_size = 24
 max_font_size = 72
 
-# **Panel objects**
+# **Characters**
 overlap_offset = 24
-max_panel_objects_per_panel = 5
-panel_object_bubble_speech_freq = 0.65
+max_characters_per_panel = 5
+character_bubble_speech_freq = 0.65
 object_to_panel_area_max_ratio = 0.4
-min_panel_object_size = 8
+min_character_size = 8
 
 # *Transformations*
 

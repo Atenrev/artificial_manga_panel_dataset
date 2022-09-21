@@ -289,25 +289,7 @@ class SpeechBubble(object):
             text_orientation=data['text_orientation']
         )
 
-    def render(self):
-        """
-        A function to render this speech bubble
-
-        :return: A list of states of the speech bubble,
-        the speech bubble itself, it's mask and it's location
-        on the page
-        :rtype: tuple
-        """
-
-        bubble = Image.open(self.speech_bubble).convert("L")
-        mask = bubble.copy()
-
-        # Set variable font size
-        min_font_size = cfg.max_font_size
-        max_font_size = cfg.max_font_size
-        current_font_size = self.font_size
-        font = ImageFont.truetype(self.font, current_font_size)
-
+    def apply_prerendering_transforms(self, bubble, mask):
         # Center of bubble
         w, h = bubble.size
         cx, cy = w/2, h/2
@@ -409,6 +391,15 @@ class SpeechBubble(object):
 
                 self.writing_areas = new_writing_areas
                 states.append("hflip")
+
+        return bubble, mask, (w, h), states
+
+    def write_text_to_bubble(self, bubble, states):
+        # Set variable font size
+        min_font_size = cfg.max_font_size
+        max_font_size = cfg.max_font_size
+        current_font_size = self.font_size
+        font = ImageFont.truetype(self.font, current_font_size)
 
         # Write text into bubble
         write = ImageDraw.Draw(bubble)
@@ -541,7 +532,23 @@ class SpeechBubble(object):
                            direction=self.text_orientation
                            )
 
+    def render(self):
+        """
+        A function to render this speech bubble
+
+        :return: A list of states of the speech bubble,
+        the speech bubble itself, it's mask and it's location
+        on the page
+        :rtype: tuple
+        """
+
+        bubble = Image.open(self.speech_bubble).convert("L")
+        mask = bubble.copy()
+        bubble, mask, new_size, states = self.apply_prerendering_transforms(bubble, mask)
+        self.write_text_to_bubble(bubble, states)        
+
         # reisize bubble
+        w, h = new_size
         aspect_ratio = w/h
         new_height = max(1, round(np.sqrt(self.resize_to/aspect_ratio)))
         new_width = max(1, round(new_height * aspect_ratio))
