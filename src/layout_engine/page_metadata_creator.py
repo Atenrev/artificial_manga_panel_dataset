@@ -124,7 +124,7 @@ def create_single_panel_metadata(panel: Panel,
             speech_bubble = speech_bubble_factory.create_with_orientation(
                 character)
             speech_bubble.place_randomly(
-                character, cfg.bubble_to_character_area_max_ratio)
+                character, cfg.bubble_to_character_area_min_ratio, cfg.bubble_to_character_area_max_ratio)
             character.add_speech_bubble(speech_bubble)
 
         overlaps = False
@@ -148,7 +148,7 @@ def create_single_panel_metadata(panel: Panel,
         speech_bubble = speech_bubble_factory.create_with_no_orientation(panel)
 
         overlaps = False
-        speech_bubble.place_randomly(panel, cfg.bubble_to_panel_area_max_ratio)
+        speech_bubble.place_randomly(panel, cfg.bubble_to_panel_area_min_ratio, cfg.bubble_to_panel_area_max_ratio)
 
         for other_speech_bubble in panel.speech_bubbles:
             overlaps = overlaps or speech_bubble.overlaps(other_speech_bubble)

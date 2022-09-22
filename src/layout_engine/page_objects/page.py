@@ -208,6 +208,8 @@ class Page(Panel):
 
             page_mask = Image.new(size=(W, H), mode="1", color="black")
             draw_rect = ImageDraw.Draw(page_mask)
+            bubble_segms = []
+            character_segms = []
 
             # Panel coords
             rect = panel.get_polygon()
@@ -218,25 +220,24 @@ class Page(Panel):
             else:
                 draw_rect.polygon(rect, fill=255)
 
-            for i, po in enumerate(panel.characters):
-                character_image, character_mask, location = po.render()
-                instance_segmentation = Image.new(
-                    '1', (character_image.width, character_image.height), "white")
-                page_mask.paste(instance_segmentation, location, character_mask)
-                # page_po_mask = Image.new(size=(W, H), mode="1", color="black")
-                # page_po_mask.paste(instance_segmentation, location, character_mask)
-                # po_seg, po_bb, po_area = get_segmentation(page_po_mask)
-                # annotations.append({
-                #     "id": f"panel.name_po_{i}",
-                #     "image_id": self.name,
-                #     "category_id": 2,
-                #     "segmentation": po_seg,
-                #     "area": po_area,
-                #     "bbox": po_bb,
-                #     "iscrowd": 0,
-                # })
+            for ch in panel.characters:
+                character_images, character_masks, location = ch.render(get_segmentations=True)
+                
+                for i, (ci, cm) in enumerate(zip(character_images, character_masks)):
+                    instance_segmentation = Image.new(
+                        '1', (ci.width, ci.height), "white")
+                    # Paste to panel segmentation mask
+                    page_mask.paste(instance_segmentation, location, cm)
+                    # Create character and bubble segmentation masks and annotations
+                    object_segm = Image.new(size=(W, H), mode="1", color="black")
+                    object_segm.paste(instance_segmentation, location, cm)
 
-            for i, sb in enumerate(panel.speech_bubbles):
+                    if i == 0:
+                        character_segms.append(object_segm)
+                    else:
+                        bubble_segms.append(object_segm)
+
+            for sb in panel.speech_bubbles:
                 bubble, mask, location = sb.render()
                 # Slightly shift mask so that you get outline for bubbles
                 new_mask_width = mask.size[0]+cfg.bubble_mask_x_increase
@@ -250,25 +251,19 @@ class Page(Panel):
                 )
                 # Uses a mask so that the "L" type bubble is cropped
                 bubble_mask = bubble_mask.crop(crop_dims)
-
                 instance_segmentation = Image.new(
                     '1', (bubble.width, bubble.height), "white")
+                # Paste to panel segmentation mask
                 page_mask.paste(instance_segmentation, location, bubble_mask)
-                # page_sb_mask = Image.new(size=(W, H), mode="1", color="black")
-                # page_sb_mask.paste(instance_segmentation, location, bubble_mask)
-                # sb_seg, sb_bb, sb_area = get_segmentation(page_sb_mask)
-                # annotations.append({
-                #     "id": f"panel.name_sb_{i}",
-                #     "image_id": self.name,
-                #     "category_id": 1,
-                #     "segmentation": sb_seg,
-                #     "area": sb_area,
-                #     "bbox": sb_bb,
-                #     "iscrowd": 0,
-                # })
+                # Create character and bubble segmentation masks and annotations
+                page_sb_mask = Image.new(size=(W, H), mode="1", color="black")
+                page_sb_mask.paste(instance_segmentation, location, bubble_mask)
+                bubble_segms.append(page_sb_mask)
 
             if self.transform_rotation is not None and self.transform_rotation != 0:
                 page_mask = page_mask.rotate(self.transform_rotation, expand=True)
+                character_segms = [cs.rotate(self.transform_rotation, expand=True) for cs in character_segms]
+                bubble_segms = [bs.rotate(self.transform_rotation, expand=True) for bs in bubble_segms]
                 self.width, self.height = page_mask.size
 
             panel_segmentation, panel_bb, panel_area = get_segmentation(page_mask)
@@ -288,6 +283,28 @@ class Page(Panel):
                 "bbox": panel_bb,
                 "iscrowd": 0,
             }
+
+            for cs in character_segms:
+                obj_seg, obj_bb, obj_area = get_segmentation(cs)
+                annotations.append({
+                    "image_id": image_id,
+                    "category_id": 3,
+                    "segmentation": obj_seg,
+                    "area": obj_area,
+                    "bbox": obj_bb,
+                    "iscrowd": 0,
+                })
+
+            for bs in bubble_segms:
+                obj_seg, obj_bb, obj_area = get_segmentation(bs)
+                annotations.append({
+                    "image_id": image_id,
+                    "category_id": 2,
+                    "segmentation": obj_seg,
+                    "area": obj_area,
+                    "bbox": obj_bb,
+                    "iscrowd": 0,
+                })
 
             if panel_area > 0.0:
                 annotations.append(panel_annotation)

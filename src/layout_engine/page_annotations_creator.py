@@ -42,14 +42,16 @@ def create_coco_annotations(coco_annotations_path):
             "id": 1,
             "name": "panel",
         },
-        # {
-        #     "id": 2,
-        #     "name": "speech_bubble",
-        # },
-        # {
-        #     "id": 3,
-        #     "name": "character",
-        # }
+        {
+            "supercategory": "comic",
+            "id": 2,
+            "name": "speech_bubble",
+        },
+        {
+            "supercategory": "comic",
+            "id": 3,
+            "name": "character",
+        }
     ]
 
     filenames = [(id + 1, filename)

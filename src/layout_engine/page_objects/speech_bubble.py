@@ -112,13 +112,13 @@ class SpeechBubble(object):
 
         if transforms is None:
             possible_transforms = [
-
                 "rotate",
                 "stretch x",
                 "stretch y",
             ]
 
-            if self.orientation is np.nan:
+            # If it has no orientation
+            if type(self.orientation) is float:
                 possible_transforms += [
                     "flip horizontal",
                     "flip vertical"
@@ -128,7 +128,8 @@ class SpeechBubble(object):
             if np.random.rand() < 0.98:
                 self.transforms = list(np.random.choice(
                     possible_transforms,
-                    2
+                    2,
+                    replace=False
                 ))
 
                 # 1 in 20 chance of inversion
@@ -169,7 +170,7 @@ class SpeechBubble(object):
                                            max_font_size
                                            )
 
-    def place_randomly(self, parent, max_ratio: float = 1.0):
+    def place_randomly(self, parent, min_ratio: float = 0.3, max_ratio: float = 1.0):
         """
         A method to place the SpeechBubble in a random location
         inside the parent.
@@ -179,8 +180,7 @@ class SpeechBubble(object):
 
         :type  panel: Panel
         """
-        max_area = parent.get_area() * max_ratio
-        new_area = max_area - np.random.random() * (max_area*0.3)  # TODO: Parametrize
+        new_area = parent.get_area() * (np.random.random() * (max_ratio-min_ratio) + min_ratio )
         self.resize_to = new_area
 
         x_choice, y_choice = parent.get_random_coords()
@@ -570,16 +570,19 @@ class SpeechBubble(object):
         x2 = x1 + new_width
         y2 = y1 + new_height
 
-        if x2 > cfg.page_width:
-            x1 = x1 - (x2-cfg.page_width)
-        elif x1 < 0:
-            xcenter -= x1
-            x1 = 0
-        if y2 > cfg.page_height:
-            y1 = y1 - (y2-cfg.page_height)
-        elif y1 < 0:
-            ycenter -= y1
-            y1 = 0
+        # If it has no orientation, otherwise, the character
+        # manages this.
+        if type(self.orientation) is float:
+            if x2 > cfg.page_width:
+                x1 = x1 - (x2-cfg.page_width)
+            elif x1 < 0:
+                xcenter -= x1
+                x1 = 0
+            if y2 > cfg.page_height:
+                y1 = y1 - (y2-cfg.page_height)
+            elif y1 < 0:
+                ycenter -= y1
+                y1 = 0
 
         self.location = (x1, y1)
 

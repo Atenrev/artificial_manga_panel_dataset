@@ -36,15 +36,15 @@ font_character_coverage = 0.80
 
 # TODO: Figure out page type distributions
 num_pages_ratios = {
-    1: 0.1,
-    2: 0.1,
-    3: 0.1,
-    4: 0.1,
-    5: 0.1,
-    6: 0.1,
-    7: 0.1,
-    8: 0.1,
-    32: 0.2,
+    1: 0.1125,
+    2: 0.1125,
+    3: 0.1125,
+    4: 0.1125,
+    5: 0.1125,
+    6: 0.1125,
+    7: 0.1125,
+    8: 0.1125,
+    32: 0.1,
 }
 
 vertical_horizontal_ratios = {
@@ -76,8 +76,10 @@ background_add_chance = 0.5 # 0.01
 
 # **Speech bubbles**
 max_speech_bubbles_per_panel = 5
+bubble_to_panel_area_min_ratio = 0.2
 bubble_to_panel_area_max_ratio = 0.4
-bubble_to_character_area_max_ratio = 0.85
+bubble_to_character_area_min_ratio = 0.3
+bubble_to_character_area_max_ratio = 0.6
 min_bubble_size = 12
 bubble_mask_x_increase = 15
 bubble_mask_y_increase = 15

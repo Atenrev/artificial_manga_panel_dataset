@@ -112,7 +112,8 @@ class Character(object):
             if np.random.rand() < 0.98:
                 self.transforms = list(np.random.choice(
                     possible_transforms,
-                    2
+                    2,
+                    replace=False
                 ))
 
                 if "rotate" in self.transforms:
@@ -215,25 +216,25 @@ class Character(object):
         return x2 // 2, y2 // 2
 
     def get_area(self):
-        h, w = self.get_resized()
-        return h * w
+        return self.width * self.height
 
     def add_speech_bubble(self, speech_bubble: SpeechBubble):
         # TODO: It only takes into account one bubble
         h, w = speech_bubble.get_resized()
+        diameter = int(np.ceil(np.sqrt(np.square(h) + np.square(w))))
         x, y = speech_bubble.location
         cx, cy = speech_bubble.parent_center_coords
         new_x, new_y = x, y
-        xmin = x - w // 2
-        xmax = x + w // 2
-        ymin = y - h // 2
-        ymax = y + h // 2
+        xmin = x - diameter // 2
+        xmax = x + diameter // 2
+        ymin = y - diameter // 2
+        ymax = y + diameter // 2
 
         if xmin < 0:
             self.width += -xmin
             self.composite_location[0] += -xmin
             cx += -xmin
-            new_x = -xmin 
+            new_x = -xmin
 
         if xmax > self.width:
             self.width += xmax - self.width
@@ -242,9 +243,9 @@ class Character(object):
             self.height += -ymin
             self.composite_location[1] += -ymin
             cy += -ymin
-            new_y = -ymin 
+            new_y = -ymin
 
-        if ymax > self.width:
+        if ymax > self.height:
             self.height += ymax - self.height
 
         speech_bubble.location = new_x, new_y
@@ -258,12 +259,6 @@ class Character(object):
             new_size = (round(size[0]*(1+factor)), size[1])
 
         return new_size
-
-    def transform_flip(self, cy):
-        pass
-
-    def transform_mirror(self, cx):
-        pass
 
     def dump_data(self):
         """
@@ -310,7 +305,7 @@ class Character(object):
         if len(data['speech_bubbles']) > 0:
             for speech_bubble_data in data['speech_bubbles']:
                 bubble = SpeechBubble.load_data(speech_bubble_data)
-                character.speech_bubbles.append(bubble)        
+                character.speech_bubbles.append(bubble)
 
         return character
 
@@ -321,27 +316,28 @@ class Character(object):
         stretch_x_factor = stretch_y_factor = 1.0
         cx, cy = w/2, h/2
         new_size = new_composite_size = None
-        
+
         for transform in self.transforms:
             if transform == "stretch x":
                 stretch_factor = self.transform_metadata['stretch_x_factor']
-                new_size = self.transform_stretch((w, h), stretch_factor, False)
-                new_composite_size =  (composite_w + new_size[0] - w, composite_h)
+                new_size = self.transform_stretch(
+                    (w, h), stretch_factor, False)
+                new_composite_size = (
+                    composite_w + new_size[0] - w, composite_h)
                 stretch_x_factor += stretch_factor
 
             elif transform == "stretch y":
                 stretch_factor = self.transform_metadata['stretch_y_factor']
                 new_size = self.transform_stretch((w, h), stretch_factor, True)
-                new_composite_size = (composite_w, composite_h + new_size[1] - h)
+                new_composite_size = (
+                    composite_w, composite_h + new_size[1] - h)
                 stretch_y_factor += stretch_factor
 
             elif transform == "flip horizontal":
                 object_image = ImageOps.flip(object_image)
-                self.transform_flip(cy)
 
             elif transform == "flip vertical":
                 object_image = ImageOps.mirror(object_image)
-                self.transform_mirror(cx)
 
             if new_size is not None and new_composite_size is not None:
                 w, h = new_size
@@ -351,43 +347,23 @@ class Character(object):
             object_image = object_image.resize(new_size)
             composite_image = composite_image.resize(new_composite_size)
 
-        return composite_image, object_image, (composite_w, composite_h)
+        return composite_image, object_image, stretch_x_factor, stretch_y_factor
 
-    def render(self):
-        """
-        A function to render this character
+    def apply_rotation(self, composite_image):
+        rotation = self.transform_metadata['rotation_amount']
+        composite_image = composite_image.rotate(rotation, expand=True)
+        return composite_image
 
-        :return: The character itself, its mask and its location
-        on the page
-        :rtype: tuple
-        """
-
-        composite_image = Image.new("RGBA", (self.width, self.height))
-        object_image = Image.open(self.object_image).convert("RGBA")
-
-        composite_image, object_image, composite_size = self.apply_prerendering_transforms(composite_image, object_image)
-
-        composite_image.paste(object_image, self.composite_location, object_image)
-
-        for speech_bubble in self.speech_bubbles:
-            speech_bubble_image, speech_bubble_mask, location = speech_bubble.render()
-            composite_image.paste(speech_bubble_image, location, speech_bubble_mask)
-
-        # reisize object
-        composite_w, composite_h = composite_size
+    def apply_resizing(self, composite_image):
+        composite_w, composite_h = composite_image.size
         aspect_ratio = composite_w/composite_h
         new_height = max(1, round(np.sqrt(self.resize_to/aspect_ratio)))
         new_width = max(1, round(new_height * aspect_ratio))
-
         composite_image = composite_image.resize((new_width, new_height))
+        return composite_image
 
-        # perform rotation if it was in transforms
-        if "rotate" in self.transforms:
-            rotation = self.transform_metadata['rotation_amount']
-            composite_image = composite_image.rotate(rotation, expand=True)
-            new_width, new_height = composite_image.size
-
-        # Make sure object doesn't bleed the page
+    def prevent_bleeding(self, composite_image):
+        new_width, new_height = composite_image.size
         xcenter, ycenter = self.location
         # center object in coordinates
         x1 = xcenter - new_width // 2
@@ -406,6 +382,58 @@ class Character(object):
             ycenter -= y1
             y1 = 0
 
+        return x1, y1
+
+    def render(self, get_segmentations=False):
+        """
+        A function to render this character
+
+        :return: The character itself, its mask and its location
+        on the page
+        :rtype: tuple
+        """
+
+        composite_image = Image.new("RGBA", (self.width, self.height))
+        object_image = Image.open(self.object_image).convert("RGBA")
+        composite_image, object_image, _, _ = self.apply_prerendering_transforms(
+            composite_image, object_image)
+        composite_images = [composite_image]
+
+        if get_segmentations:
+            composite_images += [composite_image.copy()
+                                 for _ in range(len(self.speech_bubbles))]
+
+        composite_images[0].paste(
+            object_image, self.composite_location, object_image)
+
+        for i, speech_bubble in enumerate(self.speech_bubbles):
+            speech_bubble_image, speech_bubble_mask, location = speech_bubble.render()
+            # TODO: There's a bug that cuts panels above the caracter, solve it
+            # This is a temporal fix
+            x, y = location
+            x = max(0, x); y = max(0, y)
+
+            if not get_segmentations:
+                composite_images[0].paste(speech_bubble_image,
+                                    (x, y), speech_bubble_mask)
+            else:
+                composite_images[i+1].paste(speech_bubble_image,
+                                    (x, y), speech_bubble_mask)
+
+        composite_images = [
+            self.apply_resizing(ci) for ci in composite_images
+        ]
+
+        if "rotate" in self.transforms:
+            composite_images = [
+            self.apply_rotation(ci) for ci in composite_images
+        ]
+
+        x1, y1 = self.prevent_bleeding(composite_images[0])
         self.location = (x1, y1)
 
-        return composite_image, composite_image.copy(), self.location
+        if not get_segmentations:
+            return composite_images[0], composite_images[0], self.location
+        else:
+            return composite_images, composite_images, self.location
+
