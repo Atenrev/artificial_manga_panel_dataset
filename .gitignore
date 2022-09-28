@@ -134,9 +134,10 @@ dmypy.json
 raw.tar.gz
 
 .vscode/
-/datasets
+/datasets/*
+!/datasets/bn_danbooru_bg.csv
+!/datasets/bn_danbooru_fg.csv
 /output*/
 config/
 .DS_Store
-/augraphy*
 /acmd*

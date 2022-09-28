@@ -117,7 +117,7 @@ def main(args):
             font_dataset_path
         )
 
-    # Download and convert image from Kaggle
+    # Download and danbooru images using Rsync
     if args.download_images:
         download_db_illustrations()
         convert_images_to_bw()

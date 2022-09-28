@@ -286,25 +286,29 @@ class Page(Panel):
 
             for cs in character_segms:
                 obj_seg, obj_bb, obj_area = get_segmentation(cs)
-                annotations.append({
-                    "image_id": image_id,
-                    "category_id": 3,
-                    "segmentation": obj_seg,
-                    "area": obj_area,
-                    "bbox": obj_bb,
-                    "iscrowd": 0,
-                })
+
+                if obj_area >= cfg.min_object_area:
+                    annotations.append({
+                        "image_id": image_id,
+                        "category_id": 3,
+                        "segmentation": obj_seg,
+                        "area": obj_area,
+                        "bbox": obj_bb,
+                        "iscrowd": 0,
+                    })
 
             for bs in bubble_segms:
                 obj_seg, obj_bb, obj_area = get_segmentation(bs)
-                annotations.append({
-                    "image_id": image_id,
-                    "category_id": 2,
-                    "segmentation": obj_seg,
-                    "area": obj_area,
-                    "bbox": obj_bb,
-                    "iscrowd": 0,
-                })
+
+                if obj_area >= cfg.min_object_area:
+                    annotations.append({
+                        "image_id": image_id,
+                        "category_id": 2,
+                        "segmentation": obj_seg,
+                        "area": obj_area,
+                        "bbox": obj_bb,
+                        "iscrowd": 0,
+                    })
 
             if panel_area > 0.0:
                 annotations.append(panel_annotation)

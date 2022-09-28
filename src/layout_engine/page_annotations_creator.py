@@ -11,15 +11,10 @@ from src.layout_engine.page_objects.page import Page
 def create_single_page_coco_annotations(data):
         id = data[0]
         filename = data[1]
-
-        if not filename.endswith(".json"):
-            pass
-
         metadata = os.path.join(cfg.METADATA_DIR, filename)
         page = Page()
         page.load_data(metadata)
         page_image, page_annotations = page.create_coco_annotations(id)
-
         return page_image, page_annotations
 
 
@@ -38,17 +33,17 @@ def create_coco_annotations(coco_annotations_path):
 
     categories = [
         {
-            "supercategory": "comic",
+            "supercategory": None,
             "id": 1,
             "name": "panel",
         },
         {
-            "supercategory": "comic",
+            "supercategory": None,
             "id": 2,
             "name": "speech_bubble",
         },
         {
-            "supercategory": "comic",
+            "supercategory": None,
             "id": 3,
             "name": "character",
         }
@@ -58,10 +53,17 @@ def create_coco_annotations(coco_annotations_path):
                  for id, filename in enumerate(os.listdir(cfg.METADATA_DIR))
                  if filename.endswith(".json")]
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.CONCURRENT_MAX_WORKERS) as executor:
         results = list(tqdm(executor.map(create_single_page_coco_annotations, filenames),
                             total=len(filenames)))
                             
+    # images, annotations = [], []
+
+    # for id, filename in tqdm(filenames):
+    #     i, a = create_single_page_coco_annotations((id, filename))
+    #     images.append(i)
+    #     annotations.append(a)
+
     images, annotations = zip(*results)
     annotations = [ann for anns in annotations for ann in anns]
 

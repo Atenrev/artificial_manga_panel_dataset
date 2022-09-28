@@ -2,6 +2,12 @@ import os
 import glob
 
 
+# Danbooru downloader
+bg_folder = "datasets/backgrounds"
+fg_folder = "datasets/foregrounds"
+bg_data = "datasets/bn_danbooru_bg.csv"
+fg_data = "datasets/bn_danbooru_fg.csv"
+
 # Concurrent
 CONCURRENT_MAX_WORKERS = 8
 
@@ -118,3 +124,8 @@ full_page_movement_proportion_limit = 25
 
 # Other
 texture_probability = 0.5
+
+# Annotation
+min_object_area = 16
+min_subobject_area = 16
+approximate_contour_epsilon = 0.0015

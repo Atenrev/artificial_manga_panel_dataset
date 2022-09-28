@@ -1,6 +1,8 @@
-from typing import List, Tuple
 import numpy as np
 import cv2
+from typing import List, Tuple
+
+import src.config_file as cfg
 
 
 def crop_image_only_outside(img, tol: int = 0) -> np.ndarray:
@@ -458,16 +460,18 @@ def get_segmentation(img) -> Tuple[List, Tuple, float]:
     np_mask = np.array(img).astype(np.uint8)
     bb = cv2.boundingRect(np_mask)
     contours, _ = cv2.findContours(
-        np_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        np_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     segmentation = []
     area = 0.0
 
     for contour in contours:
+        epsilon = cfg.approximate_contour_epsilon * cv2.arcLength(contour, True)
+        contour = cv2.approxPolyDP(contour, epsilon, True)
         new_area = cv2.contourArea(contour)
         contour = contour.flatten().tolist()
 
-        if len(contour) > 4:
+        if len(contour) >= 6 and new_area >= cfg.min_subobject_area:
             segmentation.append(contour)
             area += new_area
 

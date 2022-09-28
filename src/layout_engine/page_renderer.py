@@ -47,6 +47,6 @@ def render_pages(dry=False):
                  for filename in os.listdir(cfg.METADATA_DIR)
                  if filename.endswith(".json")]
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.CONCURRENT_MAX_WORKERS) as executor:
         results = list(tqdm(executor.map(create_single_page, filenames),
                             total=len(filenames)))

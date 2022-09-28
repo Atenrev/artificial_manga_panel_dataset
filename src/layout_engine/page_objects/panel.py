@@ -342,18 +342,7 @@ class Panel(object):
 
         bounding_box = self.get_bounding_box()
         composite_img = Image.new("RGBA", cfg.page_size, (0, 0, 0, 0))
-
         image_h = int(self.height)
-        # height_offset = int(self.height // 5)
-
-        # if not self.non_rect:
-        #     gap = max(height_offset-np.random.randint(4, 48), 0)
-        #     draw_img = ImageDraw.Draw(composite_img)
-        #     draw_img.rectangle(
-        #         (bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[1] + gap),
-        #         fill='white', outline=boundary_color)
-        #     image_h -= height_offset
-        #     bounding_box[1] += height_offset
 
         # reisize panel
         w, h = img.size
@@ -411,16 +400,6 @@ class Panel(object):
                                   width=boundary_width
                                   )
             else:
-                # if not self.non_rect:
-                #     line_rect = (
-                #         self.x1y1,
-                #         self.x2y2,
-                #         (self.x3y3[0], self.x3y3[1] + height_offset),
-                #         (self.x4y4[0], self.x4y4[1] + height_offset),
-                #         self.x1y1,
-                #         self.x1y1,
-                #     )
-
                 draw_img.line(line_rect,
                               fill=boundary_color,
                               width=boundary_width,
