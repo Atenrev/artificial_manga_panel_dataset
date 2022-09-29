@@ -7,17 +7,16 @@ from src.layout_engine.helpers import (
                         invert_for_next
 )
 
-from src.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_metadata_transforms import (
     get_base_panels,
     get_leaf_panels,
     move_children_to_line
-
 )
-from src.layout_engine.page_dataset_creator import (
+from src.layout_engine.page_metadata_draw import (
     draw_n
 )
 
-from src.layout_engine.page_object_classes import Page
+from src.layout_engine.page_objects import Page
 
 @pytest.mark.parametrize(
     "min_area",

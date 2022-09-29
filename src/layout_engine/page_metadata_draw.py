@@ -679,7 +679,6 @@ def draw_n_shifted(n, parent, horizontal_vertical, shifts=[]):
     bottomright = parent.x3y3
     bottomleft = parent.x4y4
 
-    # if input out of bounds i.e. 1:
     if n == 1:
         poly_coords = (topleft, topright, bottomright, bottomleft, topleft)
         panel = Panel(poly_coords,
@@ -690,6 +689,7 @@ def draw_n_shifted(n, parent, horizontal_vertical, shifts=[]):
                         )
 
         parent.add_child(panel)
+        # parent.leaf_children.append(panel)
         return parent
 
     # Allow each inital panel to grow to up to 150% of 100/n

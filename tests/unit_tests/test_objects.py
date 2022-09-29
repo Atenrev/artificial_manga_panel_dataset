@@ -2,48 +2,42 @@ import pytest
 import json
 import pandas as pd
 import os
+from src.layout_engine.page_metadata_transforms import shrink_panels
 
 from src.layout_engine.page_objects import (
-                                Page
-                                )
-from src.layout_engine.page_dataset_creator import (
-                                get_base_panels, populate_panels
-                                )
-                                
+    Page
+)
+from src.layout_engine.page_metadata_creator import (
+    get_base_panels, populate_panels
+)
+import src.config_file as cfg
+
 
 @pytest.fixture(scope="module")
 def data_files():
-
-    image_dir_path = "datasets/image_dataset/db_illustrations_bw/"
-    image_dir = os.listdir(image_dir_path)
+    backgrounds_dir = os.listdir(cfg.backgrounds_dir_path)
+    foregrounds_dir = os.listdir(cfg.foregrounds_dir_path)
 
     text_dataset = pd.read_parquet("datasets/text_dataset/jesc_dialogues")
 
     speech_bubbles_path = "datasets/speech_bubbles_dataset/"
 
-    speech_bubble_files = os.listdir(speech_bubbles_path+"/files/")
-    speech_bubble_files = [speech_bubbles_path+"files/"+filename
-                           for filename in speech_bubble_files
-                           ]
-
     speech_bubble_tags = pd.read_csv(speech_bubbles_path +
                                      "writing_area_labels.csv")
-
     font_files_path = "datasets/font_dataset/"
     viable_font_files = []
-    with open(font_files_path+"viable_fonts.csv") as viable_fonts:
 
+    with open(font_files_path+"viable_fonts.csv") as viable_fonts:
         for line in viable_fonts.readlines():
             path, viable = line.split(",")
             viable = viable.replace("\n", "")
             if viable == "True":
                 viable_font_files.append(path)
 
-    return (image_dir,
-            image_dir_path,
+    return (backgrounds_dir,
+            foregrounds_dir,
             viable_font_files,
             text_dataset,
-            speech_bubble_files,
             speech_bubble_tags
             )
 
@@ -75,7 +69,7 @@ def test_panel_get_polygons():
 def test_speech_bubble_dumping(data_files):
     """
     This function tests whether the speech bubble object
-    can dump it's data properly
+    can dump its data properly
 
     :param data_files: File names and information used to populate the
     speech bubble
@@ -84,9 +78,9 @@ def test_speech_bubble_dumping(data_files):
     """
 
     page = get_base_panels(num_panels=1)
-    page = populate_panels(page, *data_files, minimum_speech_bubbles=1)
-
-    bubble = page.speech_bubbles[0]
+    page = shrink_panels(page)
+    page = populate_panels(page, *data_files, minimum_speech_bubbles=1, no_characters=True)
+    bubble = page.leaf_children[0].speech_bubbles[0]
     data = bubble.dump_data()
     data_keys = data.keys()
 
@@ -177,9 +171,9 @@ def test_speech_bubble_rendering(inverted,
     :type data_files: tuple
     """
     page = get_base_panels(num_panels=1)
-    page = populate_panels(page, *data_files, minimum_speech_bubbles=1)
-
-    bubble = page.speech_bubbles[0]
+    page = shrink_panels(page)
+    page = populate_panels(page, *data_files, minimum_speech_bubbles=1, no_characters=True)
+    bubble = page.leaf_children[0].speech_bubbles[0]
     bubble.transforms = transforms
 
     # Dummy metadata
@@ -193,7 +187,6 @@ def test_speech_bubble_rendering(inverted,
         bubble.transforms.append("invert")
 
     bubble.text_orientation = text_orientation
-
     bubble.render()
 
 
@@ -205,7 +198,6 @@ def test_page_dumping():
     should be able to load it as well.
     """
     page = Page()
-
     page_json = page.dump_data("./", dry=True)
     page_json = json.loads(page_json)
     keys = list(page_json.keys())
@@ -217,6 +209,8 @@ def test_page_dumping():
     assert "background" in keys
     assert "children" in keys
     assert "speech_bubbles" in keys
+    assert "transform_noise" in keys
+    assert "transform_rotation" in keys
 
 
 def test_page_loading():
@@ -271,7 +265,6 @@ def test_page_rendering(num_panels, speech_bubbles, data_files):
     page = get_base_panels(num_panels=num_panels)
 
     if speech_bubbles:
-
         page = populate_panels(page, *data_files)
 
     page.render(show=False)

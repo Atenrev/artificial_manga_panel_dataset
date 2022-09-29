@@ -13,12 +13,43 @@ Here's a sample of an image created with this code:
 2. ```pip3 install -r requirements.txt```
 3. Base materials here: https://www.kaggle.com/aasimsani/ampd-base just create a `datasets/` folder and place the contents of the Kaggle repo in it. You will only need ```font_dataset```, ```speech_bubbles_dataset```, and ```text_dataset```.
 4. Run ```python3 main.py --download_images``` to download the foreground and background images.
-5. In case you want to modify individual scripts for scraping or cleaning this downloaded data you can find them in ```main.py```
-6. Before you start just run ```python3 main.py --run_tests``` to make sure
+5. Create a ```textures``` directory inside ```datasets``` and place any textures you want to apply to the rendered pages.
+6. In case you want to modify individual scripts for scraping or cleaning this downloaded data you can find them in ```main.py```
+7. Before you start just run ```python3 main.py --run_tests``` to make sure
 you have all the libraries installed and things are working fine
 6. Now you can run ```python3 main.py --generate_pages N``` to make pages
   1. You can also run the metadata generation ```python3 main.py --create_page_metadata N```, the page rendering ```python3 main.py --render_pages```, and the annotations creator ```python3 main.py --create_annotations``` seperately. render_pages and create_annotations calls will read the ```datasets/page_metadata/``` folder to find files to render.
-7. You can modify ```preprocessing/config_file.py``` to change how the generator works to render various parts of the page
+7. You can modify ```src/config_file.py``` to change how the generator works to render various parts of the page
+
+
+### Directory structure
+
+```
+./datasets/
+    backgrounds/
+    font_dataset/
+    foregrounds/
+    speech_bubbles_dataset/
+    text_dataset/
+    textures/
+    bn_danbooru_bg.csv
+    bn_danbooru_fg.csv
+
+./src/
+    layout_engine/
+        page_objects/
+            panel.py
+            ...
+        ...
+    scraping/
+    config_file.py
+    convert_images.py
+    extract_and_verify_fonts.py
+    text_dataset_format.changer.py
+
+./tests/
+    ...
+```
 
 
 ## Future work:

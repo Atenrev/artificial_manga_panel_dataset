@@ -1,14 +1,16 @@
 import pytest
 import numpy as np
 from copy import deepcopy
-from src.layout_engine.page_dataset_creator import (
-    draw_n_shifted,
-    draw_n,
-    draw_two_shifted,
+from src.layout_engine.page_metadata_transforms import (
     single_slice_panels,
     box_transform_panels,
     box_transform_page,
-    get_base_panels
+)
+from src.layout_engine.page_metadata_draw import (
+    get_base_panels,
+    draw_n_shifted,
+    draw_n,
+    draw_two_shifted,
 )
 from src.layout_engine.helpers import invert_for_next, get_leaf_panels
 from src.layout_engine.page_objects import Panel, Page

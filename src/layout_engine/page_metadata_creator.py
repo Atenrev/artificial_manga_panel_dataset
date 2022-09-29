@@ -53,7 +53,8 @@ def create_single_panel_metadata(panel: Panel,
                                  font_files: list,
                                  text_dataset: pd.DataFrame,
                                  speech_bubble_tags: pd.DataFrame,
-                                 minimum_speech_bubbles: int = 0
+                                 minimum_speech_bubbles: int = 0,
+                                 no_characters: bool = False
                                  ):
     """
     This is a helper function that populates a single panel with
@@ -111,8 +112,12 @@ def create_single_panel_metadata(panel: Panel,
         panel.image = os.path.join(cfg.backgrounds_dir_path, background_image)
 
     # Foregrounds
-    num_characters = np.random.randint(0,
-                                       cfg.max_characters_per_panel + 1)
+    if no_characters:
+        num_characters = 0
+    else:
+        num_characters = np.random.randint(0,
+                                        cfg.max_characters_per_panel + 1)
+
     if panel.image is None:
         num_characters = min(1, num_characters)
 
@@ -170,7 +175,8 @@ def populate_panels(page: Page,
                     font_files: list,
                     text_dataset: pd.DataFrame,
                     speech_bubble_tags: pd.DataFrame,
-                    minimum_speech_bubbles: int = 0
+                    minimum_speech_bubbles: int = 0,
+                    no_characters: bool = False
                     ):
     """
     This function takes all the panels and adds backgorund images
@@ -224,7 +230,8 @@ def populate_panels(page: Page,
                                      font_files,
                                      text_dataset,
                                      speech_bubble_tags,
-                                     minimum_speech_bubbles
+                                     minimum_speech_bubbles,
+                                     no_characters
                                      )
 
     return page
@@ -350,7 +357,6 @@ def create_metadata(n_pages: int, dry: bool):
     viable_font_files = []
 
     with open(font_files_path+"viable_fonts.csv") as viable_fonts:
-
         for line in viable_fonts.readlines():
             path, viable = line.split(",")
             viable = viable.replace("\n", "")
