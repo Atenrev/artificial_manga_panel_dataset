@@ -54,11 +54,11 @@ class JSONLogger:
 def download_image(id: int, dst: str, extension: str = '.png') -> bool:
     bucket = str(id % 1000).zfill(4)
     error_code = subprocess.call([
-        'wsl',
+        # 'wsl', # Windows
         'rsync',
         f'rsync://176.9.41.242:873/danbooru2021/original/{bucket}/{id}.{extension}',
         dst
-    ], shell=True)
+    ]) # , shell=True # Windows
     return error_code == 0
 
 
